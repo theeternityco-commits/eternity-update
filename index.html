@@ -1,0 +1,1855 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>The Receipt Booth</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        /* --- CSS Reset --- */
+        html, body {
+            width: 100vw; height: 100vh; margin: 0; padding: 0;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            overflow: hidden;
+            background: #000;
+            user-select: none; -webkit-user-select: none;
+        }
+
+        /* --- Layout Structure --- */
+        .page {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            width: 100vw; height: 100vh;
+            background: #fff;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        .page.active { display: flex; z-index: 20; }
+
+        /* --- Page 0: ADMIN BOOT SCREEN --- */
+        #page-boot {
+            background: #0c0c0c; color: white; gap: 30px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .boot-logo-text {
+            font-size: 48px; font-weight: 800; letter-spacing: -2px; margin-bottom: 20px;
+            color: #ffffff;
+        }
+        .boot-logo-text span { color: #444; }
+
+        .mode-container { display: flex; gap: 20px; width: 90%; max-width: 600px; }
+        .mode-card-new {
+            flex: 1; aspect-ratio: 1/1; background: #0c0c0c; border: 2px solid #222; border-radius: 40px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; font-weight: bold; color: #ffffff; cursor: pointer;
+            transition: all 0.3s ease; box-shadow: 0 0 20px rgba(255, 255, 255, 0.05);
+            text-transform: lowercase;
+        }
+        .mode-card-new span { color: #444; }
+        .mode-card-new:active { transform: scale(0.95); background: #1a1a1a; box-shadow: 0 0 30px rgba(255, 255, 255, 0.1); }
+
+        /* ซ่อนปุ่ม Option (Request 3) */
+        .btn-option {
+            margin-top: 20px; padding: 12px 60px; border-radius: 50px; border: none;
+            background: transparent; color: transparent; font-size: 18px; font-weight: bold;
+            cursor: pointer; opacity: 0; z-index: 50;
+        }
+
+        .boot-footer {
+            position: absolute; bottom: 40px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+        }
+        .boot-footer span { font-size: 12px; color: #444; text-transform: lowercase; }
+        .footer-logo-img { width: 120px; height: auto; filter: brightness(1); }
+
+        /* --- Page 1: HOME --- */
+        #page-home { cursor: pointer; justify-content: center; padding: 0; background: #000; }
+
+        /* --- Page Headers --- */
+        h2 { margin-bottom: 30px; font-size: 28px; color: #222; }
+
+        /* --- SELECT QUANTITY --- */
+        .qty-cards-container { display: flex; gap: 20px; width: 90%; max-width: 700px; justify-content: center; margin-top: 20px; }
+        .qty-card { flex: 1; background: #fff; border: 2px solid #eee; border-radius: 16px; padding: 40px 20px; text-align: center; cursor: pointer; position: relative; transition: all 0.2s; }
+        .qty-card:active { transform: scale(0.95); border-color: #1dd1a1; }
+        .qty-card h3 { font-size: 24px; color: #333; margin: 0 0 15px 0; }
+        .qty-card .price { font-size: 36px; font-weight: bold; color: #1dd1a1; margin: 0; }
+        .qty-card.promo { border-color: #ff6b6b; background: #fff9f9; transform: scale(1.08); }
+        .promo-badge { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); background: #ff6b6b; color: white; padding: 5px 20px; border-radius: 20px; font-size: 14px; font-weight: bold; white-space: nowrap; }
+
+        /* ปุ่ม Cancel แบบสวยๆ */
+        .btn-cancel-new {
+            margin-top: 30px; padding: 15px 60px; border-radius: 50px; border: 2px solid #333;
+            background: #000; color: #fff; font-size: 18px; font-weight: bold;
+            cursor: pointer; text-transform: lowercase; transition: all 0.2s;
+        }
+        .btn-cancel-new:active { transform: scale(0.95); background: #222; }
+
+        /* --- Grid System --- */
+        .layout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 90%; max-width: 650px; }
+        .layout-opt { border: 3px solid #eee; border-radius: 16px; padding: 20px 15px; text-align: center; cursor: pointer; transition: all 0.2s; background: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
+        .layout-opt:active { transform: scale(0.95); border-color: #333; }
+        .layout-opt h3 { margin: 15px 0 0; font-size: 20px; font-weight: bold; color: #444; }
+        .layout-icon { background: #f0f0f0; margin: 0 auto; border: 2px solid #ddd; border-radius: 4px; }
+
+        .i-solo { width: 100px; height: 133px; }
+        .i-strip { width: 75px; height: 135px; display: flex; flex-direction: column; gap: 4px; } .i-strip div { width: 100%; height: 32%; background: #ccc; border-radius: 2px; }
+        .i-grid { width: 110px; height: 110px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; } .i-grid div { background: #ccc; width: 100%; height: 100%; border-radius: 2px; }
+        .i-twin { width: 110px; height: 140px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; gap: 4px; } .i-twin div { background: #ccc; width: 100%; height: 100%; border-radius: 2px; }
+
+        /* ไอคอนหน้าเลือกโหมดกล้อง (ปกติ / ฟิชอาย) */
+        .cammode-icon { font-size: 56px; line-height: 1; margin-bottom: 8px; }
+
+        /* --- Page: Choose Your Style --- */
+        #page-frame { background: #fff; text-align: center; }
+        .frame-grid { display: flex; gap: 20px; justify-content: center; width: 95%; max-width: 900px; margin-top: 20px; }
+        .frame-opt-card {
+            flex: 1; background: #fff; border: 1px solid #eee; border-radius: 20px;
+            padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center;
+        }
+        .frame-preview-box {
+            width: 100%; aspect-ratio: 3/4; background: #f0f0f0; border-radius: 12px;
+            margin-bottom: 15px; overflow: hidden; position: relative;
+        }
+        .frame-preview-box img { position: absolute; left: 0; width: 100%; }
+        .frame-label { font-size: 20px; font-weight: bold; color: #333; }
+
+        .timer-bar-bg { width: 250px; height: 4px; background: #eee; border-radius: 2px; margin: 10px auto; overflow: hidden; }
+        .timer-bar-fill { height: 100%; background: #ff6b6b; width: 100%; transition: width 1s linear; }
+
+        /* --- Page 3: CAMERA --- */
+        #flash-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #ffffff; opacity: 0; pointer-events: none; z-index: 9999; }
+        .flash-active { animation: flash_burst 0.5s ease-out forwards; }
+        @keyframes flash_burst { 0% { opacity: 1; } 15% { opacity: 1; } 100% { opacity: 0; } }
+
+        .cam-box { position: relative; width: 90%; max-width: 600px; background: black; border-radius: 12px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        #video { transform: scaleX(-1); }
+        #countdown { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 150px; color: white; display: none; text-shadow: 0 5px 20px rgba(0,0,0,0.5); font-weight: bold;}
+        #dots-container { display: flex; gap: 12px; }
+        .dot { width: 18px; height: 18px; background: #e0e0e0; border-radius: 50%; transition: all 0.3s ease; }
+        .dot.active { background: #ff3b30; box-shadow: 0 2px 8px rgba(255, 59, 48, 0.4); transform: scale(1.1); }
+
+        /* --- Page 4: REVIEW (Printer Animation) --- */
+        /* กลุ่มรูป+ปุ่ม จัดกึ่งกลางจอ (สืบทอด justify-content:center จาก .page) */
+        #page-review { background: #fff; }
+        .printer-slot-machine {
+            display: flex; flex-direction: column; align-items: center;
+            width: 100%; position: relative;
+        }
+
+        /* สร้างหัวเครื่องปริ้น 2 ส่วนเพื่อให้รูอยู่ตรงกลาง */
+        .slot-bezel {
+            width: 320px; height: 50px;
+            background: linear-gradient(180deg, #f5f5f5 0%, #c4c4c4 100%);
+            border-radius: 12px; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            z-index: 30; position: relative;
+        }
+
+        /* ช่องรูดำที่อยู่ลึกเข้าไป */
+        .slot-bezel-hole {
+            width: 280px; height: 12px; background: #111; border-radius: 6px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.9);
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 25; /* อยู่หลัง Bezel แต่หน้ากระดาษ */
+        }
+
+        .paper-scroll-area {
+            width: 260px; height: auto; overflow: hidden;  /* height:auto = โชว์ใบเสร็จเต็มใบ ไม่ตัดท่อนล่าง */
+            z-index: 10; position: relative;
+            margin-top: 6px; /* กระดาษโผล่ใต้หัวเครื่องปริ้น ไม่มุดเข้าไปบังหัวกรอบ */
+            background: transparent;
+        }
+
+        .receipt-image {
+            width: 100%; display: block; background: #fff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transform: translateY(-100%);
+            transition: transform 3s cubic-bezier(0.2, 0, 0.2, 1);
+            z-index: 5;
+        }
+        /* เลื่อนลงมาจนสุด = ใบเสร็จโผล่เต็มใบ (translateY(0) ไม่ให้ท่อนล่างโดน overflow ตัด) */
+        .receipt-image.printed { transform: translateY(0); }
+
+        /* เว้นช่องว่างระหว่างรูปกับปุ่มให้มากขึ้น (รูป+ปุ่มยังอยู่กึ่งกลางจอ) */
+        .action-bar { display: flex; gap: 20px; width: 90%; max-width: 400px; margin: 64px auto 0; }
+        .btn-main { flex: 1; padding: 18px; border-radius: 50px; border: none; font-size: 18px; font-weight: bold; cursor: pointer; color: white; }
+        .btn-retake { background: #ff6b6b; }
+        .btn-print { background: #1dd1a1; }
+
+        /* --- Page 5: PRINTING & QR --- */
+        #page-print { background: #fff; text-align: center; }
+        .print-loader-container { margin-bottom: 20px; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #333; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        #print-status { font-size: 24px; font-weight: bold; color: #333; margin-bottom: 30px; }
+        #qrcode-container { display: flex; flex-direction: column; align-items: center; width: 100%; }
+        #qrcode { background: white; padding: 20px; border-radius: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.12); margin-bottom: 50px; }
+        .btn-done-pill { padding: 15px 100px; border-radius: 50px; border: none; background: #000; color: white; cursor: pointer; font-size: 20px; font-weight: bold; text-transform: lowercase; }
+
+        /* --- Admin Options Overlay --- */
+        .overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0c0c0c; z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: center; color: white; overflow-y: auto; }
+        .overlay.active { display: flex; }
+        .overlay-subtitle { font-size: 18px; color: #ffffff; letter-spacing: 4px; margin-bottom: 40px; text-transform: lowercase; }
+        .overlay-menu { display: flex; flex-direction: column; gap: 20px; width: 90%; max-width: 450px; }
+
+        .btn-menu-new {
+            padding: 30px; border-radius: 25px; border: 2px solid #222; background: #0c0c0c;
+            color: white; font-size: 28px; font-weight: bold; cursor: pointer; text-align: center;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.03); text-transform: lowercase;
+        }
+        .btn-menu-new span { color: #444; }
+
+        /* ปุ่มเลือกช่องทางเครื่องปริ้น (USB/Bluetooth/WiFi) */
+        .btn-ptype {
+            flex: 1; padding: 16px 8px; border-radius: 14px; border: 2px solid #222;
+            background: #0c0c0c; color: #888; font-size: 16px; font-weight: bold; cursor: pointer;
+        }
+        .btn-ptype.active { border-color: #1dd1a1; color: #1dd1a1; }
+        .bt-device-item {
+            padding: 12px; border-radius: 12px; border: 1px solid #333; background: #111;
+            color: #ddd; font-size: 15px; cursor: pointer; text-align: left;
+        }
+        .bt-device-item.active { border-color: #1dd1a1; color: #1dd1a1; }
+        .bt-device-item small { display:block; color:#666; font-size:11px; }
+        .btn-back-link { position: absolute; bottom: 40px; color: #ffffff; font-size: 18px; letter-spacing: 4px; cursor: pointer; text-transform: lowercase; background: none; border: none; }
+
+        /* เมนู Frame Edit 3 ช่อง (ช่องละสไตล์ — กรอบ 1 ภาพคลุมทั้งใบ) */
+        .frame-grid-edit {
+            display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;
+            width: 95%; max-width: 500px; margin-top: 20px;
+        }
+        .btn-frame-part {
+            padding: 20px 10px; border-radius: 15px; border: 1px solid #333;
+            background: #111 center/cover no-repeat; color: white; font-size: 14px; cursor: pointer;
+            text-align: center; display: flex; flex-direction: column; justify-content: flex-end; gap: 5px;
+            min-height: 160px;
+        }
+        .btn-frame-part span { font-size: 11px; color: #666; font-weight: normal; }
+        .btn-frame-part:active { background: #222; transform: scale(0.95); }
+        .frame-edit-col { display: flex; flex-direction: column; gap: 8px; }
+        .frame-edit-title { color: #fff; font-weight: bold; font-size: 13px; text-align: center; letter-spacing: 1px; }
+        .frame-grid-edit .btn-frame-part { min-height: 88px; font-size: 15px; }
+        .btn-frame-part.bw { border-color: #555; filter: grayscale(1); }
+        .btn-cat { flex: 1; padding: 18px; border-radius: 16px; border: 2px solid #333; background: #0c0c0c; color: #fff; font-size: 18px; font-weight: bold; cursor: pointer; }
+        .btn-cat span { display: block; color: #666; font-size: 12px; font-weight: normal; margin-top: 4px; }
+        .btn-cat.active-cat { border-color: #1dd1a1; background: #10231d; }
+
+        @media (max-width: 600px) { .mode-container { flex-direction: column; } .qty-cards-container { flex-direction: column; } }
+    </style>
+</head>
+
+<body>
+    <div id="flash-overlay"></div>
+
+    <!-- PAGE: ACTIVATE LICENSE (Device Lock) -->
+    <div id="page-activate" class="page active" style="background:#0c0c0c; color:#fff; gap:22px; padding:20px;">
+        <div class="boot-logo-text">reciept<span>photobooth</span></div>
+        <div class="overlay-subtitle">activate license</div>
+        <input type="text" id="license-input" placeholder="กรอกรหัสไลเซนส์ที่ได้รับ"
+               style="width:90%; max-width:420px; padding:18px; border-radius:14px; border:1px solid #333; background:#111; color:#fff; font-size:18px; text-align:center; letter-spacing:2px;">
+        <button class="btn-menu-new" style="width:90%; max-width:420px; font-size:22px;" onclick="submitLicense()">เปิดใช้งาน</button>
+        <div id="activate-status" style="color:#ff6b6b; min-height:22px; font-weight:bold; text-align:center;"></div>
+        <div id="device-id-text" style="color:#444; font-size:12px; word-break:break-all; text-align:center; max-width:90%;"></div>
+    </div>
+
+    <!-- PAGE: BOOT -->
+    <div id="page-boot" class="page">
+        <div class="boot-logo-text">reciept<span>photobooth</span></div>
+        <div class="mode-container">
+            <div class="mode-card-new" onclick="startSystem('event')">event<span>mode</span></div>
+            <div class="mode-card-new" onclick="checkKioskPin()">kiosk<span>mode</span></div>
+        </div>
+        <button class="btn-option" onclick="toggleOverlay('overlay-main', true)">option</button>
+        <div class="boot-footer">
+            <span>made by</span>
+            <img src="static/logo.png" class="footer-logo-img" onerror="this.style.display='none'; document.getElementById('footer-fallback').style.display='block';">
+            <div id="footer-fallback" style="display:none; color:white; font-weight:bold;">THE ETERNITY</div>
+        </div>
+    </div>
+
+    <div id="overlay-main" class="overlay">
+        <div class="boot-logo-text">reciept<span>photobooth</span></div>
+        <div class="overlay-subtitle">option</div>
+        <div class="overlay-menu">
+            <button class="btn-menu-new" id="btn-google-auth" onclick="window.Android.signInGoogle()">link<span>google drive</span></button>
+            <button class="btn-menu-new" onclick="toggleOverlay('overlay-frames', true)">frame<span>edit</span></button>
+            <button class="btn-menu-new" onclick="toggleOverlay('overlay-price-edit', true)">price<span>edit</span></button>
+            <button class="btn-menu-new" onclick="toggleOverlay('overlay-print-adjust', true)">print<span>adjust b&amp;w</span></button>
+            <button class="btn-menu-new" onclick="toggleOverlay('overlay-home-video', true)">home video<span>edit</span></button>
+            <button class="btn-menu-new" onclick="toggleOverlay('overlay-printer-setup', true)">printer<span>setup (usb/bt/wifi)</span></button>
+            <button class="btn-menu-new" onclick="toggleOverlay('overlay-qr-edit', true)">qrcode<span>edit</span></button>
+            <button class="btn-menu-new" onclick="checkAppUpdate()" style="font-size:16px; padding:15px;">app update<span id="app-version-label">check now</span></button>
+            <button class="btn-menu-new" onclick="showDeviceInfo()" style="font-size:16px; padding:15px;">device<span>license info</span></button>
+        </div>
+        <button class="btn-back-link" onclick="toggleOverlay('overlay-main', false)">back</button>
+    </div>
+
+    <div id="overlay-frames" class="overlay">
+        <div class="boot-logo-text">reciept<span>photobooth</span></div>
+        <div class="overlay-subtitle">frame edit</div>
+        <div class="overlay-menu">
+            <p style="color:#888; font-size:13px; margin:0 0 4px; text-align:center; max-width:520px;">
+                เลือก "กลุ่มเลย์เอาต์" ก่อน แล้วอัปกรอบ 3 สไตล์ (<b style="color:#1dd1a1;">สี</b> = ดิจิทัล/QR,
+                <b style="color:#fff;">ขาวดำ</b> = ปริ้นกระดาษ ถ้าไม่อัปจะใช้สีปริ้นแทน)
+            </p>
+            <div style="display:flex; gap:12px; width:95%; max-width:500px;">
+                <button class="btn-cat" id="cat-sg" onclick="selectEditCategory('sg')">Solo &amp; Grid<span>4:5</span></button>
+                <button class="btn-cat" id="cat-st" onclick="selectEditCategory('st')">Strip &amp; Twin<span>9:16</span></button>
+            </div>
+            <div class="frame-grid-edit" id="frame-edit-buttons" style="margin-top:14px;"></div>
+
+            <!-- ชั้นรูป: ปกติใช้ AUTO (เดาจากกรอบว่าเจาะรูช่องรูปไหม) — กันเหนียวบังคับเองได้ถ้าออโต้เดาพลาด -->
+            <div class="frame-edit-title" style="margin-top:18px;">ชั้นรูป (photo layer)</div>
+            <p style="color:#888; font-size:12px; margin:4px 0 6px; text-align:center; max-width:520px;">
+                <b style="color:#1dd1a1;">AUTO</b> = เดาให้เอง (กรอบเจาะรู→รูปอยู่ใต้กรอบ / กรอบทึบ→รูปอยู่บน)
+                ถ้าเดาพลาดค่อยกดบังคับเอง
+            </p>
+            <div style="display:flex; gap:8px; width:95%; max-width:500px;">
+                <button class="btn-cat" id="layer-auto" onclick="setPhotoLayerMode('auto')">AUTO<span>เดาให้</span></button>
+                <button class="btn-cat" id="layer-under" onclick="setPhotoLayerMode('under')">รูปใต้กรอบ<span>กรอบทับบน</span></button>
+                <button class="btn-cat" id="layer-over" onclick="setPhotoLayerMode('over')">รูปบนกรอบ<span>แบบเดิม</span></button>
+            </div>
+
+            <button class="btn-menu-new" onclick="resetAllFrames()" style="font-size:16px; padding:15px; margin-top:14px; border-color:#551a1a;">reset all<span>frames</span></button>
+        </div>
+        <button class="btn-back-link" onclick="toggleOverlay('overlay-frames', false)">back</button>
+    </div>
+
+    <div id="overlay-qr-edit" class="overlay">
+        <div class="boot-logo-text">reciept<span>photobooth</span></div>
+        <div class="overlay-subtitle">qr code edit</div>
+        <div class="overlay-menu" style="gap: 10px;">
+            <label style="color: #888;">PromptPay ID</label>
+            <input type="text" id="input-pp" style="padding: 15px; border-radius: 12px; border: 1px solid #333; background: #111; color: white;">
+            <label style="color: #888;">SlipOK API Key</label>
+            <input type="text" id="input-api" style="padding: 15px; border-radius: 12px; border: 1px solid #333; background: #111; color: white;">
+            <label style="color: #888;">SlipOK Branch ID</label>
+            <input type="text" id="input-branch" style="padding: 15px; border-radius: 12px; border: 1px solid #333; background: #111; color: white;">
+            <button class="btn-menu-new" onclick="saveKioskSettings()" style="margin-top: 20px;">save<span>settings</span></button>
+        </div>
+        <button class="btn-back-link" onclick="toggleOverlay('overlay-qr-edit', false)">back</button>
+    </div>
+
+    <div id="overlay-price-edit" class="overlay">
+        <div class="boot-logo-text">reciept<span>photobooth</span></div>
+        <div class="overlay-subtitle">price edit</div>
+        <div class="overlay-menu" style="gap: 10px;">
+            <p style="color:#888; font-size:13px; margin:0 0 4px; text-align:center; max-width:420px;">
+                ตั้งราคาขายเอง (บาท) ราคานี้จะใช้ทั้งหน้าเลือกจำนวน, QR PromptPay และตรวจสลิปอัตโนมัติ
+            </p>
+            <label style="color: #888;">1 รูป (บาท)</label>
+            <input type="number" inputmode="numeric" id="input-price-1" style="padding: 15px; border-radius: 12px; border: 1px solid #333; background: #111; color: white;">
+            <label style="color: #888;">2 รูป (บาท)</label>
+            <input type="number" inputmode="numeric" id="input-price-2" style="padding: 15px; border-radius: 12px; border: 1px solid #333; background: #111; color: white;">
+            <label style="color: #888;">3 รูป (บาท)</label>
+            <input type="number" inputmode="numeric" id="input-price-3" style="padding: 15px; border-radius: 12px; border: 1px solid #333; background: #111; color: white;">
+            <button class="btn-menu-new" onclick="saveKioskPrices()" style="margin-top: 16px;">save<span>prices</span></button>
+        </div>
+        <button class="btn-back-link" onclick="toggleOverlay('overlay-price-edit', false)">back</button>
+    </div>
+
+    <div id="overlay-print-adjust" class="overlay" style="justify-content:flex-start; padding:24px 0 90px; box-sizing:border-box;">
+        <div class="boot-logo-text">reciept<span>photobooth</span></div>
+        <div class="overlay-subtitle">print adjust (ขาวดำ)</div>
+        <div class="overlay-menu" style="gap: 10px;">
+            <p style="color:#888; font-size:13px; margin:0 0 2px; text-align:center; max-width:440px;">
+                ปรับโทนรูป <b style="color:#fff;">เฉพาะตอนปริ้นกระดาษ (ขาวดำ)</b> เท่านั้น — ไม่กระทบรูปสีดิจิทัล/QR
+                <br>เลื่อนแล้วดูตัวอย่างข้างล่างว่าจะปริ้นออกมาประมาณไหน
+            </p>
+            <canvas id="bw-preview-canvas" width="360" height="300" style="width:100%; max-width:360px; align-self:center; background:#fff; border-radius:10px; border:1px solid #333;"></canvas>
+            <label style="color: #888;">Offset (สว่าง / มืด): <b id="bw-offset-val" style="color:#1dd1a1;">0</b></label>
+            <input type="range" id="input-bw-offset" min="-120" max="120" value="0" step="1" oninput="onBwSliderInput()" style="width:100%;">
+            <label style="color: #888;">Contrast (ความต่างโทน): <b id="bw-contrast-val" style="color:#1dd1a1;">0</b></label>
+            <input type="range" id="input-bw-contrast" min="-100" max="100" value="0" step="1" oninput="onBwSliderInput()" style="width:100%;">
+            <div style="display:flex; gap:12px; width:100%;">
+                <button class="btn-menu-new" onclick="resetBwAdjust()" style="flex:1; font-size:16px; padding:14px; border-color:#444;">reset<span>0 / 0</span></button>
+                <button class="btn-menu-new" onclick="savePrintAdjust()" style="flex:2;">save<span>print adjust</span></button>
+            </div>
+        </div>
+        <button class="btn-back-link" onclick="toggleOverlay('overlay-print-adjust', false)">back</button>
+    </div>
+
+    <div id="overlay-home-video" class="overlay">
+        <div class="boot-logo-text">reciept<span>photobooth</span></div>
+        <div class="overlay-subtitle">home video</div>
+        <div class="overlay-menu" style="gap: 12px;">
+            <p style="color:#888; font-size:13px; margin:0; text-align:center; max-width:420px;">
+                เปลี่ยนวิดีโอพื้นหลังหน้าหลักเป็นของลูกค้าได้ — ตัวเดิมที่ติดมากับเครื่องเก็บไว้เสมอ กดรีเซ็ตเพื่อกลับไปใช้ได้ตลอด
+            </p>
+            <p style="color:#888; font-size:14px; margin:0;">สถานะตอนนี้: <b id="home-video-status" style="color:#1dd1a1;">—</b></p>
+            <button class="btn-menu-new" onclick="pickHomeVideo()">change<span>เลือกวิดีโอใหม่ (.mp4)</span></button>
+            <button class="btn-menu-new" onclick="resetHomeVideo()" style="font-size:16px; padding:15px; border-color:#551a1a;">reset<span>กลับไปใช้วิดีโอเดิม</span></button>
+        </div>
+        <button class="btn-back-link" onclick="toggleOverlay('overlay-home-video', false)">back</button>
+    </div>
+
+    <div id="overlay-printer-setup" class="overlay" style="justify-content:flex-start; padding:24px 0 90px; box-sizing:border-box;">
+        <div class="boot-logo-text">reciept<span>photobooth</span></div>
+        <div class="overlay-subtitle">printer setup</div>
+        <div class="overlay-menu" style="gap: 12px;">
+            <p style="color:#888; font-size:13px; margin:0; text-align:center; max-width:440px;">
+                เลือกช่องทางเชื่อมต่อเครื่องปริ้น (กระดาษ 80mm) แล้วกด save
+            </p>
+            <div style="display:flex; gap:10px; width:100%;">
+                <button class="btn-ptype" id="ptype-usb" onclick="selectPrinterType('usb')">USB</button>
+                <button class="btn-ptype" id="ptype-bluetooth" onclick="selectPrinterType('bluetooth')">Bluetooth</button>
+                <button class="btn-ptype" id="ptype-wifi" onclick="selectPrinterType('wifi')">WiFi</button>
+            </div>
+
+            <!-- USB -->
+            <div id="psec-usb" class="printer-section" style="flex-direction:column; gap:8px; color:#888; font-size:13px; text-align:center;">
+                <div>เสียบสาย USB เครื่องปริ้นเข้าแท็บเล็ต → ใช้งานได้เลย</div>
+                <label style="color:#888; margin-top:4px;">ภาพ<b>ขึ้นเส้นเป็นช่วงๆ</b> → ปรับ "ความสูงแถบพิมพ์"</label>
+                <select id="input-usb-band" style="padding:12px; border-radius:12px; border:1px solid #333; background:#111; color:white; width:100%;">
+                    <option value="0">ส่งทั้งภาพรวดเดียว (แนะนำ — แก้เส้น)</option>
+                    <option value="128">แถบใหญ่ 128 แถว</option>
+                    <option value="64">แถบกลาง 64 แถว</option>
+                    <option value="32">แถบเล็ก 32 แถว</option>
+                    <option value="255">แบบเดิม 255 แถว</option>
+                </select>
+                <p style="color:#666; font-size:11px; margin:0;">
+                    เส้นมักหายเมื่อเลือก "ทั้งภาพรวดเดียว" — ถ้ายังมีอยู่ ลองไล่เป็นแถบเล็กลงทีละขั้น แล้วกด test
+                </p>
+            </div>
+
+            <!-- Bluetooth -->
+            <div id="psec-bluetooth" class="printer-section" style="display:none; flex-direction:column; gap:8px;">
+                <p style="color:#888; font-size:12px; margin:0; text-align:center;">
+                    จับคู่เครื่องปริ้นในตั้งค่า Bluetooth ของแท็บเล็ตก่อน แล้วกดรีเฟรชเลือกจากลิสต์
+                </p>
+                <div id="bt-device-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+                <button class="btn-menu-new" onclick="refreshBtPrinters()" style="font-size:15px; padding:12px; border-color:#333;">refresh<span>รายชื่อที่จับคู่ไว้</span></button>
+                <label style="color:#888; margin-top:6px;">ความเร็วส่งข้อมูล: <b id="bt-speed-val" style="color:#1dd1a1;">40</b> KB/s</label>
+                <input type="range" id="input-bt-speed" min="15" max="60" value="40" step="1" oninput="onBtSpeedInput()" style="width:100%;">
+                <p style="color:#666; font-size:11px; margin:0; text-align:center;">
+                    ภาพออกมา<b>เป็นเส้นๆ</b> → เพิ่มเลข | ภาพ<b>เพี้ยนเป็นตัวอักษร</b> → ลดเลข
+                </p>
+            </div>
+
+            <!-- WiFi -->
+            <div id="psec-wifi" class="printer-section" style="display:none; flex-direction:column; gap:8px;">
+                <label style="color:#888;">IP เครื่องปริ้น (เช่น 192.168.1.50)</label>
+                <input type="text" inputmode="decimal" id="input-wifi-ip" placeholder="192.168.1.50" style="padding:14px; border-radius:12px; border:1px solid #333; background:#111; color:white;">
+                <label style="color:#888;">พอร์ต (ปกติ 9100)</label>
+                <input type="number" inputmode="numeric" id="input-wifi-port" value="9100" style="padding:14px; border-radius:12px; border:1px solid #333; background:#111; color:white;">
+            </div>
+
+            <div style="display:flex; gap:12px; width:100%; margin-top:6px;">
+                <button class="btn-menu-new" onclick="testPrintNow()" style="flex:1; font-size:16px; padding:14px; border-color:#1a4d3a;">test<span>ทดสอบปริ้น</span></button>
+                <button class="btn-menu-new" onclick="savePrinterSetup()" style="flex:1;">save<span>printer</span></button>
+            </div>
+        </div>
+        <button class="btn-back-link" onclick="toggleOverlay('overlay-printer-setup', false)">back</button>
+    </div>
+
+    <!-- HOME -->
+    <div id="page-home" class="page" onclick="handleHomeTap()" style="background:#000;">
+        <video id="home-video" autoplay loop muted playsinline style="position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; pointer-events: none;">
+            <source src="static/home_video.mp4" type="video/mp4">
+        </video>
+        <!-- เครดิตแบรนด์ โชว์เฉพาะตอนใช้วิดีโอที่ลูกค้าอัปเอง (วิดีโอเดิมมีแบรนด์อยู่แล้ว) -->
+        <div id="home-credit" style="position:absolute; bottom:20px; left:0; right:0; text-align:center; color:rgba(255,255,255,0.75); font-size:13px; letter-spacing:2px; pointer-events:none; display:none; text-shadow:0 1px 5px rgba(0,0,0,0.7);">made by the eternity</div>
+    </div>
+
+    <!-- QUANTITY -->
+    <div id="page-quantity" class="page">
+        <h2>Select Quantity</h2>
+        <div class="qty-cards-container">
+            <div class="qty-card" onclick="goToPayment(1)"><h3>1 Print</h3><p class="price" id="price-1">35 ฿</p></div>
+            <div class="qty-card" onclick="goToPayment(2)"><h3>2 Prints</h3><p class="price" id="price-2">70 ฿</p></div>
+            <div class="qty-card promo" onclick="goToPayment(3)"><div class="promo-badge">HOT</div><h3>3 Prints</h3><p class="price" id="price-3">100 ฿</p></div>
+        </div>
+        <button class="btn-cancel-new" onclick="goHome()">cancel</button>
+    </div>
+
+    <!-- LAYOUT -->
+    <div id="page-layout" class="page">
+        <h2>Choose Layout</h2>
+        <div class="layout-grid">
+            <div class="layout-opt" onclick="selectLayout('solo')"><div class="layout-icon i-solo"></div><h3>Solo</h3></div>
+            <div class="layout-opt" onclick="selectLayout('strip')"><div class="layout-icon i-strip"><div></div><div></div><div></div></div><h3>Strip</h3></div>
+            <div class="layout-opt" onclick="selectLayout('grid')"><div class="layout-icon i-grid"><div></div><div></div><div></div><div></div></div><h3>Grid</h3></div>
+            <div class="layout-opt" onclick="selectLayout('twin')"><div class="layout-icon i-twin"><div></div><div></div><div></div><div></div><div></div><div></div></div><h3>Twin</h3></div>
+        </div>
+        <!-- นับถอยหลัง auto-cancel กลับหน้า home_video ถ้าลูกค้าไม่เลือกใน 15 วิ (ทีม UX ออกแบบ) -->
+        <div id="layout-autocancel" style="margin-top:25px; color:#999; font-size:15px;">Auto cancel in <span id="layout-countdown">15</span>s</div>
+        <div class="timer-bar-bg"><div id="layout-timer-bar" class="timer-bar-fill"></div></div>
+        <button class="btn-cancel-new" onclick="goHome()">cancel</button>
+    </div>
+
+    <!-- FRAME SELECTION -->
+    <div id="page-frame" class="page">
+        <h2 style="font-size: 32px; margin-top: 50px;">Choose Your Style</h2>
+        <div class="frame-grid">
+            <div class="frame-opt-card" onclick="confirmFrameSelection(1)">
+                <div class="frame-preview-box" id="prev-box-1"></div><div class="frame-label">Style 1</div>
+            </div>
+            <div class="frame-opt-card" onclick="confirmFrameSelection(2)">
+                <div class="frame-preview-box" id="prev-box-2"></div><div class="frame-label">Style 2</div>
+            </div>
+            <div class="frame-opt-card" onclick="confirmFrameSelection(3)">
+                <div class="frame-preview-box" id="prev-box-3"></div><div class="frame-label">Style 3</div>
+            </div>
+        </div>
+        <div class="timer-bar-bg"><div id="frame-timer-bar" class="timer-bar-fill"></div></div>
+        <button class="btn-back-link" onclick="showPage('page-layout')" style="color:#888;">back</button>
+    </div>
+
+    <!-- CAMERA MODE (เลือกกล้องปกติ / ฟิชอาย) — คั่นหลังเลือกกรอบ ก่อนเข้ากล้อง -->
+    <div id="page-cammode" class="page">
+        <h2 style="font-size: 32px; margin-top: 50px;">Choose Camera</h2>
+        <div class="layout-grid">
+            <div class="layout-opt" onclick="confirmCameraMode('normal')">
+                <div class="cammode-icon">🙂</div>
+                <h3>Normal</h3>
+                <p style="color:#999; font-size:13px; margin:6px 0 0;">กล้องปกติ</p>
+            </div>
+            <div class="layout-opt" onclick="confirmCameraMode('fisheye')">
+                <div class="cammode-icon">🐠</div>
+                <h3>Fisheye</h3>
+                <p style="color:#999; font-size:13px; margin:6px 0 0;">เลนส์โป่ง ฟิชอาย</p>
+            </div>
+        </div>
+        <div class="timer-bar-bg"><div id="cammode-timer-bar" class="timer-bar-fill"></div></div>
+        <button class="btn-back-link" onclick="showPage('page-frame')" style="color:#888;">back</button>
+    </div>
+
+    <!-- CAMERA -->
+    <div id="page-camera" class="page">
+        <h2 id="status-text">Get Ready</h2>
+        <div class="cam-box"><video id="video" autoplay playsinline></video><canvas id="fisheye-canvas" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%;"></canvas><div id="countdown"></div></div>
+        <div id="dots-container"></div>
+    </div>
+
+    <!-- SCAN SLIP -->
+    <div id="page-scan-slip" class="page">
+        <h2 style="color: #6c3ce1;">Show Slip to Camera</h2>
+        <p style="color: #666; margin-top: -20px;">ถือสลิปให้เห็น QR Code ชัดๆ</p>
+        <div class="cam-box" style="border: 4px solid #6c3ce1;">
+            <video id="slip-video" autoplay playsinline style="transform: scaleX(1);"></video>
+            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 2px dashed #00A796; box-sizing: border-box; pointer-events: none;"></div>
+        </div>
+        <p id="slip-status" style="font-weight: bold; color: #333;">Scanning...</p>
+        <button class="btn-cancel-new" onclick="stopSlipScanning()" style="margin-top: 10px;">cancel</button>
+        <canvas id="slipCanvas" style="display:none;"></canvas>
+    </div>
+
+    <!-- REVIEW -->
+    <div id="page-review" class="page">
+        <div class="printer-slot-machine">
+            <div class="slot-bezel"><div class="slot-bezel-hole"></div></div>
+            <div class="paper-scroll-area"><img id="final-preview" src="" class="receipt-image"></div>
+        </div>
+        <div class="action-bar">
+            <button id="btn-retake" class="btn-main btn-retake" onclick="resetAndRetake()">RETAKE</button>
+            <button class="btn-main btn-print" onclick="confirmPrint()">PRINT</button>
+        </div>
+    </div>
+
+    <!-- PRINTING/QR -->
+    <div id="page-print" class="page">
+        <div class="print-loader-container"><div id="print-loader" class="spinner"></div></div>
+        <h2 id="print-status">Printed!</h2>
+        <div id="qrcode-container" style="display:none;">
+            <div id="qrcode"></div>
+            <button class="btn-done-pill" onclick="goHome()">done</button>
+            <div id="print-countdown" style="margin-top:20px; color:#888; font-size:16px;"></div>
+        </div>
+        <!-- กล้องสแกนสลิป (ตรวจการชำระเงินอัตโนมัติ) -->
+        <div id="pay-slip-box" style="display:none; flex-direction:column; align-items:center; margin-top:25px;">
+            <p style="color:#6c3ce1; font-weight:bold; margin:0 0 10px;">โอนเงินแล้ว ยกสลิปให้กล้องสแกน</p>
+            <div class="cam-box" style="width:240px; margin:0 0 8px; border:3px solid #6c3ce1;">
+                <video id="pay-slip-video" autoplay playsinline style="transform:scaleX(1);"></video>
+            </div>
+            <p id="pay-slip-status" style="color:#333; font-weight:bold; margin:0;">กำลังรอสลิป...</p>
+        </div>
+        <canvas id="paySlipCanvas" style="display:none;"></canvas>
+    </div>
+
+    <canvas id="hiddenCanvas" style="display:none;"></canvas>
+    <input type="file" id="frameInput" style="display:none;" accept="image/*">
+
+    <script>
+        let systemMode = 'event';
+        let currentLayout = 'strip';
+        let totalPhotos = 3;
+        let photos = [];
+        let printQuantity = 1;
+        let cameraStream = null;
+        let selectedFrameIdx = 1;
+        let frameTimer = null;
+        let layoutTimer = null;
+        let retakeUsed = false;   // retake กดได้ครั้งเดียวต่อรอบถ่าย (กันลูกค้ากดรัวๆ ให้คนรอ)
+
+        // โหมดกล้อง (ปกติ/ฟิชอาย) — ลูกค้าเลือกเองหน้า page-cammode
+        let cameraMode = 'normal';      // 'normal' | 'fisheye'
+        let camModeTimer = null;        // auto-cancel หน้าเลือกโหมดกล้อง
+        let fisheye = null;             // สถานะ WebGL ฟิชอาย { canvas, gl, ... } / null = ปิด
+        const FISHEYE_STRENGTH = 0.5;   // ความแรงเลนส์โป่ง (กลางๆ) — เพิ่ม=โป่งมากขึ้น
+
+        // กรอบแยก 2 กลุ่มตามสัดส่วนช่องรูป: sg = Solo&Grid (4:5), st = Strip&Twin (9:16)
+        // แต่ละสไตล์มี 2 รูป: full = กรอบสี (ดิจิทัล/QR), print = กรอบขาวดำ (ปริ้นกระดาษ)
+        let frames = {
+            sg: { 1: { full: '', print: '' }, 2: { full: '', print: '' }, 3: { full: '', print: '' } },
+            st: { 1: { full: '', print: '' }, 2: { full: '', print: '' }, 3: { full: '', print: '' } }
+        };
+        let displayReceiptDataURL = ''; // รูปใบเสร็จสี (ใช้โชว์ + อัป Drive ทำ QR)
+        let editCategory = null;        // กลุ่มที่กำลังแก้ในหน้า frame edit ('sg' | 'st')
+
+        // ราคาขายที่เจ้าของร้านตั้งเอง (โหลดจาก settings ตอนเปิดแอป) — key = จำนวนรูป
+        let kioskPrices = { 1: 35, 2: 70, 3: 100 };
+        // ปรับโทนรูปขาวดำเฉพาะตอนปริ้น (โหลดจาก settings) — ไม่กระทบรูปสีดิจิทัล/QR
+        let bwOffset = 0;    // -120..120 บวก=สว่างขึ้น
+        let bwContrast = 0;  // -100..100 บวก=คอนทราสต์มากขึ้น
+
+        // ตั้งค่าเครื่องปริ้น (โหลดจาก settings) — เลือกได้ usb / bluetooth / wifi
+        let printerCfg = { type: 'usb', btMac: '', btName: '', wifiIp: '', wifiPort: 9100, btSpeed: 40, usbBand: 0 };
+        let btDevices = [];  // รายชื่อเครื่อง BT ที่จับคู่ไว้ (ใช้ index อ้างอิงตอนเลือก)
+
+        // กลุ่มของเลย์เอาต์: solo/grid = 4:5 (sg), strip/twin = 9:16 (st)
+        function categoryOf(layout) { return (layout === 'solo' || layout === 'grid') ? 'sg' : 'st'; }
+        function currentCategory() { return categoryOf(currentLayout); }
+
+        // เรขาคณิตใบเสร็จ + ช่องรูป (ใช้ร่วมกันทั้งตอน crop กล้องและตอนสร้างรูป เพื่อให้ตรงกันเป๊ะ)
+        // ช่องรูป (window) = พื้นที่ที่รูปถ่ายอยู่ มี margin เว้นข้าง — รูปอยู่ใต้กรอบ กรอบ PNG ต้อง "เจาะรู" ช่องนี้ให้โปร่งใส รูปถึงจะโผล่
+        function getLayoutGeom(layout) {
+            const W = 576;       // กว้างใบเสร็จ (80mm)
+            const M = 24;        // margin ซ้าย-ขวา (เฉพาะรูปถ่าย) — ลดลงให้รูปใหญ่ขึ้น
+            const G = 14;        // ช่องไฟระหว่างรูป
+            const H_HDR = 200;   // หัวกรอบ 576×200 (เท่ากันทุกกลุ่ม)
+            const H_FTR = 200;   // ท้ายกรอบ 576×200 (เท่ากันทุกกลุ่ม)
+            const winW = W - 2 * M;                                   // 528
+            const isSG = (layout === 'solo' || layout === 'grid');
+            const winH = Math.round(winW * (isSG ? 5 / 4 : 16 / 9));  // 4:5 -> 660 | 9:16 -> 939
+
+            let cols, rows, cellW, cellH;
+            if (layout === 'solo') {
+                cols = 1; rows = 1; cellW = winW; cellH = winH;
+            } else if (layout === 'grid') {
+                cols = 2; rows = 2; cellW = (winW - G) / 2; cellH = (winH - G) / 2;
+            } else {
+                // strip & twin ใช้ "ช่องรูป (window) เดียวกัน" จึงใช้กรอบร่วมกันได้
+                rows = 3;
+                cellH = (winH - 2 * G) / 3;
+                if (layout === 'twin') {
+                    cols = 2; cellW = (winW - G) / 2;   // twin = 6 รูป (2×3) แนวตั้ง ~5:6
+                } else {
+                    cols = 1; cellW = winW;             // strip = 3 รูปแนวนอน เต็มความกว้าง
+                }
+            }
+            const blockW = cols * cellW + (cols - 1) * G;
+            const xOffset = M + (winW - blockW) / 2;  // จัดบล็อกรูปกึ่งกลางช่อง (strip จะถูกเซนเตอร์)
+            return { W, M, G, H_HDR, H_FTR, winW, winH, cols, rows, cellW, cellH, xOffset, totalH: H_HDR + winH + H_FTR };
+        }
+
+        // เช็คว่าช่องนั้นมีรูปกรอบจริงไหม (กันไฟล์ว่างที่คืนค่ามาเป็น "data:image/png;base64," เปล่าๆ)
+        function frameSet(s) { return !!s && s.indexOf('data:') === 0 && s.length > 100; }
+
+        function loadSavedFrames() {
+            if (!window.Android || !window.Android.getFramePart) return;
+            ['sg', 'st'].forEach(cat => {
+                for (let i = 1; i <= 3; i++) {
+                    frames[cat][i].full = window.Android.getFramePart(i, cat + '_full');
+                    frames[cat][i].print = window.Android.getFramePart(i, cat + '_print');
+                }
+            });
+            renderFrameEditButtons();
+        }
+
+        setTimeout(loadSavedFrames, 500);
+        setTimeout(loadKioskConfig, 500);   // โหลดราคา + ค่าปรับขาวดำ ที่เจ้าของร้านตั้งไว้
+
+        // ===== Device Lock / License =====
+        function initActivation() {
+            // รันในเบราว์เซอร์ปกติ (ไม่มี Android bridge) ให้ข้ามล็อกเพื่อทดสอบ UI ได้
+            if (!window.Android || !window.Android.getActivationState) { showPage('page-boot'); return; }
+            try { document.getElementById('device-id-text').innerText = 'Device ID: ' + window.Android.getDeviceId(); } catch(e) {}
+            if (window.Android.getActivationState() === 'activated') {
+                showPage('page-boot');
+                window.Android.verifyActivation(); // เช็คซ้ำกับคลาวด์ เผื่อโดนระงับ/ย้ายเครื่อง
+            } else {
+                showPage('page-activate');
+            }
+        }
+
+        window.onActivationResult = function(data) {
+            if (typeof data === 'string') data = JSON.parse(data);
+            const st = document.getElementById('activate-status');
+            if (data.activated) {
+                if (st) st.innerText = '';
+                if (document.getElementById('page-activate').classList.contains('active')) showPage('page-boot');
+            } else {
+                showPage('page-activate');
+                if (st) { st.style.color = '#ff6b6b'; st.innerText = data.message || 'เปิดใช้งานไม่สำเร็จ'; }
+            }
+        };
+
+        function submitLicense() {
+            const key = document.getElementById('license-input').value;
+            const st = document.getElementById('activate-status');
+            st.style.color = '#ffd166';
+            st.innerText = 'กำลังตรวจสอบ...';
+            window.Android.activateLicense(key);
+        }
+
+        function showDeviceInfo() {
+            const id = (window.Android && window.Android.getDeviceId) ? window.Android.getDeviceId() : 'N/A';
+            try { navigator.clipboard.writeText(id); } catch(e) {}
+            const reset = confirm('Device ID (คัดลอกให้แล้ว):\n' + id +
+                '\n\nกด OK = "ล้างสิทธิ์เครื่องนี้" เพื่อย้ายไปเครื่องใหม่ (ทำตอนย้ายเครื่องเท่านั้น)\nกด Cancel = ปิด');
+            if (reset && window.Android.resetActivationAdmin) {
+                window.Android.resetActivationAdmin();
+                location.reload();
+            }
+        }
+
+        setTimeout(initActivation, 100); // เช็คสิทธิ์เครื่องทันทีหลังโหลด
+
+        function showPage(id) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            // หน้าเลือก layout: เริ่มนับถอยหลัง auto-cancel ทุกครั้งที่เข้า, ออกจากหน้าเมื่อไหร่หยุดทันที
+            if (id === 'page-layout') startLayoutTimer(15);
+            else stopLayoutTimer();
+            // หน้า "Choose Your Style" มี auto-cancel — เข้าหน้านี้เริ่มจับเวลาใหม่ (กดback จากหน้าเลือกกล้องก็กลับมาทำงาน), ออกหน้าหยุดทันที
+            if (id === 'page-frame') startFrameTimer(15);
+            else stopFrameTimer();
+            // หน้าเลือกโหมดกล้องก็มี auto-cancel เหมือนกัน — ออกจากหน้าเมื่อไหร่หยุดทันที
+            if (id !== 'page-cammode') stopCamModeTimer();
+        }
+
+        function toggleOverlay(id, active) {
+            document.getElementById(id).classList.toggle('active', active);
+            if (id === 'overlay-qr-edit' && active) loadKioskSettings();
+            if (id === 'overlay-frames' && active) selectEditCategory(editCategory || 'sg');
+            if (id === 'overlay-price-edit' && active) loadPriceInputs();
+            if (id === 'overlay-print-adjust' && active) loadBwAdjustPanel();
+            if (id === 'overlay-printer-setup' && active) loadPrinterSetup();
+            if (id === 'overlay-home-video' && active) refreshHomeVideoStatus();
+            if (id === 'overlay-main' && active) refreshVersionLabel();
+        }
+
+        // ===== Home video (เปลี่ยน/รีเซ็ตวิดีโอหน้าหลัก) =====
+        function pickHomeVideo() {
+            if (window.Android && window.Android.pickHomeVideo) window.Android.pickHomeVideo();
+        }
+        function resetHomeVideo() {
+            if (!confirm('กลับไปใช้วิดีโอเดิมที่ติดมากับเครื่อง?')) return;
+            if (window.Android && window.Android.resetHomeVideo) window.Android.resetHomeVideo();
+        }
+        function refreshHomeVideoStatus() {
+            try {
+                const el = document.getElementById('home-video-status');
+                if (el && window.Android && window.Android.hasCustomHomeVideo)
+                    el.textContent = window.Android.hasCustomHomeVideo() ? 'ใช้วิดีโอที่อัปเอง' : 'ใช้วิดีโอเดิม (default)';
+            } catch (e) {}
+        }
+        // โชว์เครดิต "made by the eternity" เฉพาะตอนใช้วิดีโอที่อัปเอง (วิดีโอเดิมมีแบรนด์อยู่แล้ว)
+        function refreshHomeCredit() {
+            try {
+                const el = document.getElementById('home-credit');
+                if (el && window.Android && window.Android.hasCustomHomeVideo)
+                    el.style.display = window.Android.hasCustomHomeVideo() ? 'block' : 'none';
+            } catch (e) {}
+        }
+        // ตั้ง src ของวิดีโอหน้าหลักตามที่แอปบอก (อัปเอง = ผ่าน ktor, ไม่งั้น = ไฟล์เดิม) แล้วเล่น
+        function initHomeVideo() {
+            try {
+                if (!window.Android || !window.Android.getHomeVideoSrc) return;
+                const src = window.Android.getHomeVideoSrc();
+                const v = document.getElementById('home-video');
+                const s = v ? v.querySelector('source') : null;
+                if (s && src) { s.src = src; v.load(); v.play().catch(() => {}); }
+            } catch (e) {}
+        }
+        // เรียกจากฝั่งแอปหลังเปลี่ยน/รีเซ็ตวิดีโอเสร็จ → โหลด+เล่นวิดีโอใหม่ + อัปเดตสถานะ/เครดิต
+        window.onHomeVideoChanged = function () {
+            refreshHomeVideoStatus();
+            refreshHomeCredit();
+            initHomeVideo();
+        };
+
+        // ===== App update (อัปเดตระยะไกล) =====
+        function checkAppUpdate() {
+            if (window.Android && window.Android.checkForUpdateNow) window.Android.checkForUpdateNow();
+        }
+        function refreshVersionLabel() {
+            try {
+                const el = document.getElementById('app-version-label');
+                if (el && window.Android && window.Android.getAppVersion) el.textContent = window.Android.getAppVersion();
+            } catch (e) {}
+        }
+
+        function saveKioskSettings() {
+            const pp = document.getElementById('input-pp').value;
+            const api = document.getElementById('input-api').value;
+            const branch = document.getElementById('input-branch').value;
+            window.Android.saveSettings(pp, api, branch);
+            toggleOverlay('overlay-qr-edit', false);
+        }
+
+        function loadKioskSettings() {
+            const settings = JSON.parse(window.Android.getSettings());
+            document.getElementById('input-pp').value = settings.promptpay_id;
+            document.getElementById('input-api').value = settings.slipok_api_key;
+            document.getElementById('input-branch').value = settings.slipok_branch_id;
+        }
+
+        // โหลดราคา + ค่าปรับขาวดำ จาก settings ตอนเปิดแอป (เก็บใน global ไว้ใช้ตอนคิดเงิน/ปริ้น)
+        function loadKioskConfig() {
+            if (!window.Android || !window.Android.getSettings) { renderQuantityPrices(); return; }
+            try {
+                const s = JSON.parse(window.Android.getSettings());
+                if (s.price_1 != null) kioskPrices[1] = s.price_1;
+                if (s.price_2 != null) kioskPrices[2] = s.price_2;
+                if (s.price_3 != null) kioskPrices[3] = s.price_3;
+                if (s.bw_offset != null) bwOffset = s.bw_offset;
+                if (s.bw_contrast != null) bwContrast = s.bw_contrast;
+                if (s.printer_type) printerCfg.type = s.printer_type;
+                if (s.bt_printer_mac != null) printerCfg.btMac = s.bt_printer_mac;
+                if (s.bt_printer_name != null) printerCfg.btName = s.bt_printer_name;
+                if (s.wifi_printer_ip != null) printerCfg.wifiIp = s.wifi_printer_ip;
+                if (s.wifi_printer_port != null) printerCfg.wifiPort = s.wifi_printer_port;
+                if (s.bt_speed_kbps != null) printerCfg.btSpeed = s.bt_speed_kbps;
+                if (s.usb_band_height != null) printerCfg.usbBand = s.usb_band_height;
+            } catch (e) { console.error('loadKioskConfig', e); }
+            renderQuantityPrices();
+            refreshHomeCredit();   // โชว์เครดิตแบรนด์ถ้ากำลังใช้วิดีโอที่อัปเอง
+            initHomeVideo();       // ตั้ง src วิดีโอหน้าหลักให้ถูก (ktor ถ้าอัปเอง / ไฟล์เดิมถ้าไม่)
+        }
+
+        // อัปเดตราคาที่โชว์บนการ์ดหน้าเลือกจำนวน
+        function renderQuantityPrices() {
+            for (let q = 1; q <= 3; q++) {
+                const el = document.getElementById('price-' + q);
+                if (el) el.innerText = kioskPrices[q] + ' ฿';
+            }
+        }
+
+        // ===== Price edit (ตั้งราคาขายเอง) =====
+        function loadPriceInputs() {
+            document.getElementById('input-price-1').value = kioskPrices[1];
+            document.getElementById('input-price-2').value = kioskPrices[2];
+            document.getElementById('input-price-3').value = kioskPrices[3];
+        }
+
+        function saveKioskPrices() {
+            const p1 = parseInt(document.getElementById('input-price-1').value, 10);
+            const p2 = parseInt(document.getElementById('input-price-2').value, 10);
+            const p3 = parseInt(document.getElementById('input-price-3').value, 10);
+            if ([p1, p2, p3].some(v => isNaN(v) || v < 0)) { alert('กรุณากรอกราคาเป็นตัวเลข (บาท) ให้ครบทั้ง 3 ช่อง'); return; }
+            kioskPrices = { 1: p1, 2: p2, 3: p3 };
+            window.Android.savePrices(p1, p2, p3);
+            renderQuantityPrices();
+            toggleOverlay('overlay-price-edit', false);
+        }
+
+        // ===== Print adjust (ปรับโทนรูปขาวดำเฉพาะตอนปริ้น) =====
+        // สูตรแปลงค่าเทา 1 พิกเซล — ใช้ร่วมกันทั้งหน้าพรีวิวและตอนสร้างรูปปริ้นจริง (composeReceipt)
+        function bwAdjust(g, offset, contrast) {
+            const cf = 1 + (contrast / 100);            // contrast -100 -> โทนเรียบ, +100 -> ต่างเท่าตัว
+            let v = (g - 128) * cf + 128 + offset;       // offset บวก = สว่างขึ้น
+            return v < 0 ? 0 : (v > 255 ? 255 : v);
+        }
+
+        function loadBwAdjustPanel() {
+            document.getElementById('input-bw-offset').value = bwOffset;
+            document.getElementById('input-bw-contrast').value = bwContrast;
+            document.getElementById('bw-offset-val').innerText = bwOffset;
+            document.getElementById('bw-contrast-val').innerText = bwContrast;
+            drawBwPreview(bwOffset, bwContrast);
+        }
+
+        function onBwSliderInput() {
+            const o = parseInt(document.getElementById('input-bw-offset').value, 10);
+            const c = parseInt(document.getElementById('input-bw-contrast').value, 10);
+            document.getElementById('bw-offset-val').innerText = o;
+            document.getElementById('bw-contrast-val').innerText = c;
+            drawBwPreview(o, c);
+        }
+
+        function resetBwAdjust() {
+            document.getElementById('input-bw-offset').value = 0;
+            document.getElementById('input-bw-contrast').value = 0;
+            onBwSliderInput();
+        }
+
+        function savePrintAdjust() {
+            bwOffset = parseInt(document.getElementById('input-bw-offset').value, 10) || 0;
+            bwContrast = parseInt(document.getElementById('input-bw-contrast').value, 10) || 0;
+            window.Android.savePrintAdjust(bwOffset, bwContrast);
+            toggleOverlay('overlay-print-adjust', false);
+        }
+
+        // วาด "กระดานเทียบสีเทา" (ตารางช่องเทา 0..100% + แถบไล่เฉด) แล้วใส่ค่า offset/contrast
+        // ให้เห็นตัวอย่างว่าปริ้นออกมาประมาณไหน — เลียนแบบกระดานเทียบสีที่ก๊องส่งมา
+        function drawBwPreview(offset, contrast) {
+            const cv = document.getElementById('bw-preview-canvas');
+            if (!cv) return;
+            const ctx = cv.getContext('2d');
+            const W = cv.width, H = cv.height;
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, W, H);
+
+            // โซนซ้าย = ตารางช่องเทา (0%..100%) | โซนขวา = แถบไล่เฉดต่อเนื่อง (มืด -> สว่าง)
+            const barW = 56, gap = 12;
+            const gridW = W - barW - gap * 2;
+            const cols = 5, rows = 4;                 // 20 ช่อง ไล่ระดับ 0..100%
+            const cw = gridW / cols, ch = H / rows;
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const idx = r * cols + c;
+                    const lvl = Math.round(255 * (idx / (cols * rows - 1)));
+                    ctx.fillStyle = `rgb(${lvl},${lvl},${lvl})`;
+                    ctx.fillRect(gap + c * cw, r * ch, cw - 2, ch - 2);
+                }
+            }
+            const bx = gap + gridW + gap;
+            for (let y = 0; y < H; y++) {
+                const lvl = Math.round(255 * (y / (H - 1)));
+                ctx.fillStyle = `rgb(${lvl},${lvl},${lvl})`;
+                ctx.fillRect(bx, y, barW, 1);
+            }
+
+            // ใส่ค่า offset/contrast ทับทั้งภาพ = ตัวอย่างผลตอนปริ้นจริง
+            const im = ctx.getImageData(0, 0, W, H);
+            const d = im.data;
+            for (let p = 0; p < d.length; p += 4) {
+                const v = Math.round(bwAdjust(d[p], offset, contrast));  // ภาพเป็นเทาอยู่แล้ว ใช้ channel เดียวพอ
+                d[p] = d[p + 1] = d[p + 2] = v;
+            }
+            ctx.putImageData(im, 0, 0);
+        }
+
+        // ===== Printer setup (USB / Bluetooth / WiFi) =====
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        }
+
+        function loadPrinterSetup() {
+            document.getElementById('input-wifi-ip').value = printerCfg.wifiIp || '';
+            document.getElementById('input-wifi-port').value = printerCfg.wifiPort || 9100;
+            document.getElementById('input-bt-speed').value = printerCfg.btSpeed || 40;
+            document.getElementById('bt-speed-val').textContent = printerCfg.btSpeed || 40;
+            document.getElementById('input-usb-band').value = String(printerCfg.usbBand || 0);
+            selectPrinterType(printerCfg.type || 'usb');
+        }
+
+        // ดึงค่าตัวเลือก USB band เข้า printerCfg (ใช้ทั้งตอน save และ test)
+        function syncUsbInputs() {
+            const el = document.getElementById('input-usb-band');
+            if (el) printerCfg.usbBand = parseInt(el.value, 10) || 0;
+        }
+
+        function onBtSpeedInput() {
+            const v = parseInt(document.getElementById('input-bt-speed').value, 10) || 40;
+            printerCfg.btSpeed = v;
+            document.getElementById('bt-speed-val').textContent = v;
+        }
+
+        function selectPrinterType(type) {
+            printerCfg.type = type;
+            ['usb', 'bluetooth', 'wifi'].forEach(t => {
+                document.getElementById('ptype-' + t).classList.toggle('active', t === type);
+                const sec = document.getElementById('psec-' + t);
+                if (sec) sec.style.display = (t === type) ? 'flex' : 'none';
+            });
+            if (type === 'bluetooth') refreshBtPrinters();
+        }
+
+        function refreshBtPrinters() {
+            const list = document.getElementById('bt-device-list');
+            list.innerHTML = '<div style="color:#888; font-size:13px;">กำลังโหลด...</div>';
+            let res;
+            try { res = JSON.parse(window.Android.getPairedBtPrinters()); }
+            catch (e) { list.innerHTML = '<div style="color:#ff6b6b; font-size:13px;">อ่านรายชื่อเครื่อง Bluetooth ไม่ได้</div>'; return; }
+            if (res.error === 'need_permission') {
+                list.innerHTML = '<div style="color:#ffd166; font-size:13px;">กรุณากดอนุญาต Bluetooth (popup) แล้วกด refresh อีกครั้ง</div>';
+                return;
+            }
+            if (!res.bluetooth_on) {
+                list.innerHTML = '<div style="color:#ffd166; font-size:13px;">Bluetooth ปิดอยู่ — เปิด Bluetooth แล้วกด refresh</div>';
+                return;
+            }
+            btDevices = res.devices || [];
+            if (!btDevices.length) {
+                list.innerHTML = '<div style="color:#888; font-size:13px;">ยังไม่มีเครื่องที่จับคู่ไว้ — จับคู่เครื่องปริ้นในตั้งค่า Bluetooth ของแท็บเล็ตก่อน</div>';
+                return;
+            }
+            list.innerHTML = btDevices.map((d, i) =>
+                `<button class="bt-device-item ${d.address === printerCfg.btMac ? 'active' : ''}" onclick="pickBtPrinterIdx(${i})">${escapeHtml(d.name || 'ไม่ทราบชื่อ')}<small>${escapeHtml(d.address)}</small></button>`
+            ).join('');
+        }
+
+        function pickBtPrinterIdx(i) {
+            const d = btDevices[i];
+            if (!d) return;
+            printerCfg.btMac = d.address;
+            printerCfg.btName = d.name || '';
+            refreshBtPrinters();  // re-render ให้ขึ้นไฮไลต์เครื่องที่เลือก
+        }
+
+        // ดึงค่าจาก input WiFi เข้า printerCfg (ใช้ทั้งตอน save และ test)
+        function syncWifiInputs() {
+            printerCfg.wifiIp = (document.getElementById('input-wifi-ip').value || '').trim();
+            printerCfg.wifiPort = parseInt(document.getElementById('input-wifi-port').value, 10) || 9100;
+        }
+
+        function savePrinterSetup() {
+            if (printerCfg.type === 'wifi') {
+                syncWifiInputs();
+                if (!printerCfg.wifiIp) { alert('กรุณาใส่ IP ของเครื่องปริ้น WiFi'); return; }
+            }
+            if (printerCfg.type === 'bluetooth' && !printerCfg.btMac) {
+                alert('กรุณาเลือกเครื่องปริ้น Bluetooth จากลิสต์ (จับคู่ในตั้งค่า Bluetooth ก่อน)'); return;
+            }
+            syncUsbInputs();
+            window.Android.savePrinterConfig(printerCfg.type, printerCfg.btMac, printerCfg.btName, printerCfg.wifiIp, printerCfg.wifiPort, printerCfg.btSpeed, printerCfg.usbBand);
+            toggleOverlay('overlay-printer-setup', false);
+        }
+
+        // ทดสอบปริ้น: เซฟค่าปัจจุบันก่อน (จะได้ทดสอบค่าที่เพิ่งกรอก) แล้วสั่งใบทดสอบ
+        function testPrintNow() {
+            if (printerCfg.type === 'wifi') {
+                syncWifiInputs();
+                if (!printerCfg.wifiIp) { alert('กรุณาใส่ IP ก่อนทดสอบปริ้น'); return; }
+            }
+            if (printerCfg.type === 'bluetooth' && !printerCfg.btMac) {
+                alert('กรุณาเลือกเครื่องปริ้น Bluetooth ก่อนทดสอบปริ้น'); return;
+            }
+            syncUsbInputs();
+            window.Android.savePrinterConfig(printerCfg.type, printerCfg.btMac, printerCfg.btName, printerCfg.wifiIp, printerCfg.wifiPort, printerCfg.btSpeed, printerCfg.usbBand);
+            window.Android.testPrint();
+        }
+
+        function startSystem(mode) {
+            systemMode = mode;
+            showPage('page-home');
+        }
+
+        function handleHomeTap() {
+            if (systemMode === 'kiosk') showPage('page-quantity');
+            else showPage('page-layout');
+        }
+
+        function goHome() {
+            clearPrintAutoHome();
+            stopPaySlipScan();
+            stopFisheye();   // หยุด render loop ฟิชอาย กัน WebGL วิ่งค้างเปลือง GPU
+            if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+            cameraStream = null;
+            showPage('page-home');
+        }
+
+        let slipTimer = null;
+
+        function window_onGoogleConnected(email) {
+            const btn = document.getElementById('btn-google-auth');
+            btn.innerHTML = `drive<span>connected</span>`;
+            btn.style.borderColor = "#1dd1a1";
+            window.Android.showToast("Google Account Linked: " + email);
+        }
+        window.onGoogleConnected = window_onGoogleConnected;
+
+        function checkKioskPin() {
+            // เอารหัสออกตามคำขอของก๊อง เข้าได้เลย! (Request 2)
+            startSystem('kiosk');
+        }
+
+        window.onKioskAuthResult = function(data) {
+            if (typeof data === 'string') data = JSON.parse(data);
+            if (data.success) {
+                startSystem('kiosk');
+            } else alert("Wrong PIN");
+        };
+
+        function goToPayment(qty, price) {
+            printQuantity = qty;
+            // ราคาจากที่เจ้าของร้านตั้งไว้ (ถ้าไม่ส่ง price มาก็ใช้ราคาที่ตั้งค่าไว้ตามจำนวนรูป)
+            if (price == null) price = kioskPrices[qty];
+            selectedKioskPrice = price;
+            const qrUrl = window.Android.getPromptPayQR(price);
+            showPage('page-print');
+            document.getElementById('print-loader').style.display = 'none';
+            document.getElementById('print-countdown').innerText = '';
+            document.getElementById('print-status').innerText = `Scan to Pay: ${price} THB`;
+
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = ''; // ล้างค่าเก่า
+            qrContainer.style.display = 'block';
+
+            // ดึงรูป QR จริงจาก promptpay.io มาแสดงตรงๆ (สแกนติดง่ายแน่นอน 100%)
+            qrContainer.innerHTML = `<img src="${qrUrl}" style="width:300px; height:300px; border-radius:30px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">`;
+
+            document.getElementById('qrcode-container').style.display = 'flex';
+
+            // ปุ่มลับ ( Secret Bypass อยู่มุมซ้ายล่าง )
+            const doneBtn = document.querySelector('.btn-done-pill');
+            doneBtn.innerText = "";
+            doneBtn.style.background = "transparent";
+            doneBtn.style.position = "fixed";
+            doneBtn.style.bottom = "0"; doneBtn.style.left = "0";
+            doneBtn.style.width = "150px"; doneBtn.style.height = "150px";
+            doneBtn.style.zIndex = "999";
+
+            doneBtn.onclick = () => {
+                stopPaySlipScan();
+                doneBtn.innerText = "done";
+                doneBtn.style.position = "static";
+                doneBtn.style.width = "auto";
+                doneBtn.style.height = "auto";
+                doneBtn.style.background = "#000";
+                showPage('page-layout');
+                doneBtn.onclick = goHome;
+            };
+
+            // เริ่มสแกนสลิปอัตโนมัติด้วยกล้อง (ตรวจกับ SlipOK)
+            startPaySlipScan(price);
+        }
+
+        // --- สแกนสลิปเพื่อตรวจการชำระเงินอัตโนมัติ ---
+        let paySlipStream = null;
+        let paySlipTimer = null;
+
+        function startPaySlipScan(price) {
+            selectedKioskPrice = price;
+            const box = document.getElementById('pay-slip-box');
+            box.style.display = 'flex';
+            document.getElementById('pay-slip-status').innerText = 'กำลังรอสลิป...';
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } }).then(stream => {
+                paySlipStream = stream;
+                document.getElementById('pay-slip-video').srcObject = stream;
+                paySlipTimer = setInterval(capturePaySlip, 3000);
+            }).catch(err => {
+                document.getElementById('pay-slip-status').innerText = 'เปิดกล้องไม่ได้';
+            });
+        }
+
+        function capturePaySlip() {
+            const video = document.getElementById('pay-slip-video');
+            if (!video.videoWidth) return;
+            // รีเซ็ตข้อความทุกรอบ เพื่อให้สแกนใหม่ได้เรื่อยๆ แม้รอบก่อนจะ error (กันโกง)
+            document.getElementById('pay-slip-status').innerText = 'กำลังสแกนสลิป...';
+            const canvas = document.getElementById('paySlipCanvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            window.Android.verifySlip(canvas.toDataURL('image/jpeg', 0.8), selectedKioskPrice);
+        }
+
+        function stopPaySlipScan() {
+            if (paySlipTimer) { clearInterval(paySlipTimer); paySlipTimer = null; }
+            if (paySlipStream) { paySlipStream.getTracks().forEach(t => t.stop()); paySlipStream = null; }
+            const box = document.getElementById('pay-slip-box');
+            if (box) box.style.display = 'none';
+        }
+
+        function startSlipScanning(price) {
+            selectedKioskPrice = price;
+            showPage('page-scan-slip');
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } }).then(stream => {
+                document.getElementById('slip-video').srcObject = stream;
+                slipTimer = setInterval(captureAndVerifySlip, 2000);
+            });
+        }
+
+        function stopSlipScanning() {
+            if (slipTimer) clearInterval(slipTimer);
+            const video = document.getElementById('slip-video');
+            if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
+            showPage('page-home');
+        }
+
+        function captureAndVerifySlip() {
+            const video = document.getElementById('slip-video');
+            const canvas = document.getElementById('slipCanvas');
+            if (!video.videoWidth) return;
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+
+            document.getElementById('slip-status').innerText = "Verifying slip...";
+            window.Android.verifySlip(canvas.toDataURL('image/jpeg'), selectedKioskPrice);
+        }
+
+        window.onSlipVerifyResult = function(data) {
+            if (typeof data === 'string') data = JSON.parse(data);
+            if (data.success) {
+                stopPaySlipScan();
+                window.Android.showToast("ยืนยันการชำระเงินสำเร็จ!");
+                showPage('page-layout');
+            } else {
+                const st = document.getElementById('pay-slip-status');
+                if (st && data.message) st.innerText = data.message;
+            }
+        };
+
+        // เลือกกลุ่มที่จะแก้ในหน้า frame edit แล้ว render 6 ปุ่ม (สี 3 + ขาวดำ 3)
+        function selectEditCategory(cat) {
+            editCategory = cat;
+            document.getElementById('cat-sg').classList.toggle('active-cat', cat === 'sg');
+            document.getElementById('cat-st').classList.toggle('active-cat', cat === 'st');
+            renderFrameEditButtons();
+            updatePhotoLayerButtons();
+        }
+
+        // ===== ชั้นรูป (photo layer) — เก็บใน localStorage จึงอัปแบบ HTML ล้วนได้ ไม่ต้อง build APK =====
+        // 'auto' = เดาจากกรอบ (เจาะรู→รูปใต้กรอบ) · 'under' = บังคับรูปใต้กรอบ · 'over' = บังคับรูปบนกรอบ (แบบเดิม)
+        function getPhotoLayerMode() {
+            try { return localStorage.getItem('photoLayerMode') || 'auto'; }
+            catch (e) { return 'auto'; }
+        }
+        function setPhotoLayerMode(mode) {
+            try { localStorage.setItem('photoLayerMode', mode); } catch (e) {}
+            updatePhotoLayerButtons();
+        }
+        function updatePhotoLayerButtons() {
+            const m = getPhotoLayerMode();
+            const map = { auto: 'layer-auto', under: 'layer-under', over: 'layer-over' };
+            Object.keys(map).forEach(k => {
+                const el = document.getElementById(map[k]);
+                if (el) el.classList.toggle('active-cat', k === m);
+            });
+        }
+
+        function renderFrameEditButtons() {
+            const wrap = document.getElementById('frame-edit-buttons');
+            if (!wrap) return;
+            if (!editCategory) { wrap.innerHTML = ''; return; }
+            const cat = editCategory;
+            let html = '';
+            for (let i = 1; i <= 3; i++) {
+                const hasC = frameSet(frames[cat][i].full);
+                const hasB = frameSet(frames[cat][i].print);
+                html += `<div class="frame-edit-col">
+                    <div class="frame-edit-title">STYLE ${i}</div>
+                    <button class="btn-frame-part" style="background-image:${hasC ? `url(${frames[cat][i].full})` : 'none'}" onclick="pickFrame('${cat}',${i},'full')">สี<span>digital ${hasC ? '✓' : ''}</span></button>
+                    <button class="btn-frame-part bw" style="background-image:${hasB ? `url(${frames[cat][i].print})` : 'none'}" onclick="pickFrame('${cat}',${i},'print')">ขาวดำ<span>print ${hasB ? '✓' : ''}</span></button>
+                </div>`;
+            }
+            wrap.innerHTML = html;
+        }
+
+        // cat = 'sg' | 'st', part = 'full' (สี) | 'print' (ขาวดำ)
+        function pickFrame(cat, idx, part) {
+            pickImage(base64 => {
+                window.Android.saveFramePart(idx, cat + '_' + part, base64);
+                frames[cat][idx][part] = base64;
+                renderFrameEditButtons();
+                alert(`บันทึกกรอบ${part === 'full' ? 'สี (ดิจิทัล)' : 'ขาวดำ (ปริ้น)'} ${cat === 'sg' ? 'Solo&Grid' : 'Strip&Twin'} Style ${idx} สำเร็จ!`);
+            });
+        }
+
+        function resetAllFrames() {
+            if (confirm("ล้างกรอบที่อัพโหลดทั้งหมด แล้วกลับไปใช้เฟรมพื้นฐานที่ติดมากับแอป?")) {
+                ['sg', 'st'].forEach(cat => {
+                    for (let i = 1; i <= 3; i++) {
+                        window.Android.saveFramePart(i, cat + '_full', '');
+                        window.Android.saveFramePart(i, cat + '_print', '');
+                    }
+                });
+                // ล้างไฟล์ระบบเก่า (full/print/top/bottom) ทิ้งด้วย เผื่อเคยอัพไว้
+                for (let i = 1; i <= 3; i++) {
+                    ['full', 'print', 'top', 'bottom'].forEach(p => window.Android.saveFramePart(i, p, ''));
+                }
+                // โหลดใหม่ → getFramePart จะ fallback ไปดึงเฟรมพื้นฐานจาก assets กลับมาทันที
+                loadSavedFrames();
+                alert("กลับไปใช้เฟรมพื้นฐานแล้ว");
+            }
+        }
+
+        function pickImage(callback) {
+            const input = document.getElementById('frameInput');
+            input.onchange = e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => callback(reader.result);
+                reader.readAsDataURL(file);
+            };
+            input.click();
+        }
+
+        function selectLayout(type) {
+            currentLayout = type;
+            totalPhotos = (type === 'solo') ? 1 : (type === 'strip' ? 3 : (type === 'grid' ? 4 : 6));
+            updateStylePreviews();   // โชว์กรอบของกลุ่มที่ตรงกับเลย์เอาต์ที่เลือก
+            showPage('page-frame');
+            startFrameTimer(15);
+        }
+
+        // พรีวิวในหน้า "Choose Your Style" — โชว์กรอบสี 3 สไตล์ของกลุ่มปัจจุบัน (ตามเลย์เอาต์ที่เลือก)
+        function updateStylePreviews() {
+            const cat = currentCategory();
+            const ratio = (cat === 'sg') ? '4 / 5' : '9 / 16';
+            for (let i = 1; i <= 3; i++) {
+                const box = document.getElementById(`prev-box-${i}`);
+                if (!box) continue;
+                box.style.aspectRatio = ratio;
+                if (frameSet(frames[cat][i].full)) {
+                    box.innerHTML = `<img src="${frames[cat][i].full}" style="top:0; left:0; width:100%; height:100%; object-fit:contain;">`;
+                } else {
+                    box.innerHTML = '<div style="height:100%; background:#000; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:bold;">BASIC</div>';
+                }
+            }
+        }
+
+        function startFrameTimer(sec) {
+            stopFrameTimer();
+            const bar = document.getElementById('frame-timer-bar');
+            let remain = sec;
+            if (bar) {
+                bar.style.transition = 'none'; bar.style.width = '100%';
+                setTimeout(() => { bar.style.transition = `width ${sec}s linear`; bar.style.width = '0%'; }, 50);
+            }
+            // ครบเวลาแล้วเด้งกลับหน้า home_video (เดิมเป็น no-op — แถบวิ่งแต่ไม่ทำอะไร)
+            frameTimer = setInterval(() => {
+                remain--;
+                if (remain <= 0) { stopFrameTimer(); goHome(); }
+            }, 1000);
+        }
+
+        function stopFrameTimer() {
+            if (frameTimer) { clearInterval(frameTimer); frameTimer = null; }
+        }
+
+        // หน้า layout: นับถอยหลัง + แถบเวลา ครบแล้วเด้งกลับหน้า home_video (auto-cancel ทุกโหมด ตาม UX)
+        function startLayoutTimer(sec) {
+            stopLayoutTimer();
+            const cdEl = document.getElementById('layout-countdown');
+            const bar = document.getElementById('layout-timer-bar');
+            let remain = sec;
+            if (cdEl) cdEl.innerText = remain;
+            if (bar) {
+                bar.style.transition = 'none'; bar.style.width = '100%';
+                setTimeout(() => { bar.style.transition = `width ${sec}s linear`; bar.style.width = '0%'; }, 50);
+            }
+            layoutTimer = setInterval(() => {
+                remain--;
+                if (cdEl) cdEl.innerText = Math.max(remain, 0);
+                if (remain <= 0) { stopLayoutTimer(); goHome(); }
+            }, 1000);
+        }
+
+        function stopLayoutTimer() {
+            if (layoutTimer) { clearInterval(layoutTimer); layoutTimer = null; }
+        }
+
+        function confirmFrameSelection(idx) {
+            stopFrameTimer();
+            selectedFrameIdx = idx;
+            // ไปหน้าเลือกโหมดกล้อง (ปกติ/ฟิชอาย) ก่อนเข้ากล้องจริง
+            showPage('page-cammode');
+            startCamModeTimer(15);
+        }
+
+        // เลือกโหมดกล้องแล้วเริ่มถ่าย
+        function confirmCameraMode(mode) {
+            stopCamModeTimer();
+            cameraMode = (mode === 'fisheye') ? 'fisheye' : 'normal';
+            retakeUsed = false;   // เริ่มรอบถ่ายใหม่ → คืนสิทธิ์ retake ให้ลูกค้าคนนี้
+            startCamera();
+        }
+
+        // auto-cancel หน้าเลือกโหมดกล้อง (เหมือนหน้า layout/frame) ครบเวลาเด้งกลับหน้า home_video
+        function startCamModeTimer(sec) {
+            stopCamModeTimer();
+            const bar = document.getElementById('cammode-timer-bar');
+            let remain = sec;
+            if (bar) {
+                bar.style.transition = 'none'; bar.style.width = '100%';
+                setTimeout(() => { bar.style.transition = `width ${sec}s linear`; bar.style.width = '0%'; }, 50);
+            }
+            camModeTimer = setInterval(() => {
+                remain--;
+                if (remain <= 0) { stopCamModeTimer(); goHome(); }
+            }, 1000);
+        }
+
+        function stopCamModeTimer() {
+            if (camModeTimer) { clearInterval(camModeTimer); camModeTimer = null; }
+        }
+
+        // ===== Fisheye (WebGL) — เลนส์โป่งกลางภาพ เห็นสดตอนพรีวิว + ติดในรูปจริง =====
+        // เรนเดอร์เฟรมวิดีโอผ่าน fragment shader (บิดเชิงรัศมี) ลง canvas ที่ทับวิดีโออยู่
+        // canvas backing store = ขนาด crop จริง → toDataURL ได้รูปคมเท่ากล้องปกติ
+        const FISHEYE_VS = `
+            attribute vec2 a_pos;
+            varying vec2 v_uv;
+            void main() {
+                // v_uv: (0,0)=มุมซ้ายบนของภาพที่แสดง, (1,1)=มุมขวาล่าง
+                v_uv = vec2(a_pos.x * 0.5 + 0.5, 0.5 - a_pos.y * 0.5);
+                gl_Position = vec4(a_pos, 0.0, 1.0);
+            }`;
+        const FISHEYE_FS = `
+            precision mediump float;
+            varying vec2 v_uv;
+            uniform sampler2D u_tex;
+            uniform float u_strength;   // ความแรงโป่ง
+            uniform float u_aspect;     // อัตราส่วนภาพที่แสดง (กว้าง/สูง) ทำให้วงโป่งกลม
+            uniform vec4 u_crop;        // (u0,v0,uW,vH) พื้นที่ crop กึ่งกลางในเทกซ์เจอร์วิดีโอ
+            void main() {
+                vec2 c = v_uv - 0.5;
+                vec2 cc = vec2(c.x * u_aspect, c.y);
+                float r = length(cc);
+                float rCorner = 0.5 * sqrt(u_aspect * u_aspect + 1.0);
+                float rn = (rCorner > 0.0) ? r / rCorner : 0.0;       // 0..1 (มุมภาพ=1)
+                float scale = 1.0;
+                if (rn > 0.0001) {
+                    float rnSrc = pow(rn, 1.0 + u_strength);          // โป่ง: ดึงเข้าใกล้กลาง → ขยายกลางภาพ
+                    scale = rnSrc / rn;
+                }
+                vec2 duv = c * scale + 0.5;     // 0..1 หลังบิด
+                duv.x = 1.0 - duv.x;            // กลับซ้ายขวา (กล้องหน้า = กระจกเงา)
+                vec2 tuv = u_crop.xy + duv * u_crop.zw;
+                gl_FragColor = vec4(texture2D(u_tex, tuv).rgb, 1.0);   // ทึบเสมอ กัน canvas โปร่งใส
+            }`;
+
+        function compileFisheyeShader(gl, type, src) {
+            const sh = gl.createShader(type);
+            gl.shaderSource(sh, src);
+            gl.compileShader(sh);
+            if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+                console.error('fisheye shader', gl.getShaderInfoLog(sh));
+                gl.deleteShader(sh);
+                return null;
+            }
+            return sh;
+        }
+
+        // คืน true ถ้าเปิด WebGL สำเร็จ (ไม่งั้น caller จะ fallback กล้องปกติ)
+        function startFisheye(video, cellRatio) {
+            const canvas = document.getElementById('fisheye-canvas');
+            if (!canvas) return false;
+            let gl = null;
+            try {
+                gl = canvas.getContext('webgl', { preserveDrawingBuffer: true }) ||
+                     canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+            } catch (e) { gl = null; }
+            if (!gl) return false;
+
+            const vs = compileFisheyeShader(gl, gl.VERTEX_SHADER, FISHEYE_VS);
+            const fs = compileFisheyeShader(gl, gl.FRAGMENT_SHADER, FISHEYE_FS);
+            if (!vs || !fs) return false;
+            const prog = gl.createProgram();
+            gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+            if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { console.error('fisheye link', gl.getProgramInfoLog(prog)); return false; }
+            gl.useProgram(prog);
+
+            const buf = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+            const aPos = gl.getAttribLocation(prog, 'a_pos');
+            gl.enableVertexAttribArray(aPos);
+            gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+            const tex = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, tex);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+            fisheye = {
+                canvas, gl, prog, tex, video, cellRatio, raf: null,
+                u_strength: gl.getUniformLocation(prog, 'u_strength'),
+                u_aspect: gl.getUniformLocation(prog, 'u_aspect'),
+                u_crop: gl.getUniformLocation(prog, 'u_crop'),
+                u_tex: gl.getUniformLocation(prog, 'u_tex')
+            };
+            gl.uniform1i(fisheye.u_tex, 0);
+            fisheyeLoop();
+            return true;
+        }
+
+        // วาดเฟรมเดียว: อัปโหลดเฟรมวิดีโอปัจจุบัน → crop กึ่งกลางตามสัดส่วนช่อง → บิดโป่ง
+        function drawFisheyeOnce() {
+            const fe = fisheye;
+            if (!fe) return;
+            const gl = fe.gl, v = fe.video;
+            const vw = v.videoWidth, vh = v.videoHeight;
+            if (!vw || !vh) return;
+            const targetRatio = fe.cellRatio;
+            let sw, sh;
+            if (vw / vh > targetRatio) { sh = vh; sw = vh * targetRatio; }
+            else { sw = vw; sh = vw / targetRatio; }
+            const sx = (vw - sw) / 2, sy = (vh - sh) / 2;
+            const bw = Math.round(sw), bh = Math.round(sh);
+            if (fe.canvas.width !== bw || fe.canvas.height !== bh) {
+                fe.canvas.width = bw; fe.canvas.height = bh;
+            }
+            gl.viewport(0, 0, bw, bh);
+            gl.bindTexture(gl.TEXTURE_2D, fe.tex);
+            try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, v); }
+            catch (e) { return; }   // เฟรมยังไม่พร้อม
+            gl.uniform1f(fe.u_strength, FISHEYE_STRENGTH);
+            gl.uniform1f(fe.u_aspect, targetRatio);
+            gl.uniform4f(fe.u_crop, sx / vw, sy / vh, sw / vw, sh / vh);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        }
+
+        function fisheyeLoop() {
+            if (!fisheye) return;
+            drawFisheyeOnce();
+            fisheye.raf = requestAnimationFrame(fisheyeLoop);
+        }
+
+        function stopFisheye() {
+            if (!fisheye) return;
+            if (fisheye.raf) cancelAnimationFrame(fisheye.raf);
+            const canvas = fisheye.canvas;
+            fisheye = null;
+            if (canvas) canvas.style.display = 'none';
+        }
+
+        function startCamera() {
+            photos = [];
+            getAudioCtx();   // ปลดล็อกเสียงไว้ล่วงหน้า (ยังอยู่ใน gesture chain ของการกดเลือกโหมดกล้อง)
+            showPage('page-camera');
+            // ปรับกรอบพรีวิวกล้องให้ "ตรงสัดส่วนช่องจริง" ที่จะออก (ผู้ใช้เห็นเท่าที่จะปริ้นตั้งแต่ตอนถ่าย)
+            // คำนวณ w/h ให้พอดีจอโดยรักษาสัดส่วนเป๊ะ (กันบั๊ก maxWidth ทำให้เพี้ยนเป็นเกือบ 1:1)
+            const geom = getLayoutGeom(currentLayout);
+            const camBox = document.querySelector('#page-camera .cam-box');
+            if (camBox) {
+                const ratio = geom.cellW / geom.cellH;       // กว้าง/สูง ของช่อง = สัดส่วนรูปที่จะออกจริง
+                const maxW = window.innerWidth * 0.9;
+                const maxH = window.innerHeight * 0.6;
+                let w = maxW, h = w / ratio;
+                if (h > maxH) { h = maxH; w = h * ratio; }
+                camBox.style.width = Math.round(w) + 'px';
+                camBox.style.height = Math.round(h) + 'px';
+                camBox.style.maxWidth = 'none';
+                camBox.style.aspectRatio = 'auto';
+            }
+            const dots = document.getElementById('dots-container');
+            dots.innerHTML = '';
+            for(let i=0; i<totalPhotos; i++) dots.innerHTML += '<div class="dot"></div>';
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } } }).then(stream => {
+                cameraStream = stream;
+                const videoEl = document.getElementById('video');
+                const feCanvas = document.getElementById('fisheye-canvas');
+                videoEl.srcObject = stream;
+                // โหมดฟิชอาย: เรนเดอร์ WebGL ทับวิดีโอ (เห็นโป่งสดๆ) — เปิด WebGL ไม่ได้ → fallback กล้องปกติ
+                stopFisheye();
+                if (cameraMode === 'fisheye' && startFisheye(videoEl, geom.cellW / geom.cellH)) {
+                    feCanvas.style.display = 'block';
+                } else if (feCanvas) {
+                    feCanvas.style.display = 'none';
+                }
+                setTimeout(() => takeNext(0), 1000);
+            });
+        }
+
+        function takeNext(idx) {
+            if (idx >= totalPhotos) { generatePreview(); return; }
+            document.getElementById('status-text').innerText = `Photo ${idx+1}/${totalPhotos}`;
+            let count = 3;
+            const cd = document.getElementById('countdown');
+            cd.style.display = 'block'; cd.innerText = count;
+            let t = setInterval(() => {
+                count--;
+                if (count > 0) cd.innerText = count;
+                else { clearInterval(t); cd.style.display = 'none'; triggerFlash(); playShutterSound(); snap(idx); }
+            }, 1000);
+        }
+
+        // ===== เสียงชัตเตอร์ "แชะ!" ตอนถ่าย (สังเคราะห์เอง ไม่ต้องมีไฟล์เสียง — ดังชัด คนถ่ายมีรีแอค) =====
+        let _audioCtx = null;
+        function getAudioCtx() {
+            try {
+                if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (_audioCtx.state === 'suspended') _audioCtx.resume();
+                return _audioCtx;
+            } catch (e) { return null; }
+        }
+        function playShutterSound() {
+            const ctx = getAudioCtx();
+            if (!ctx) return;
+            const t0 = ctx.currentTime;
+            // 1 คลิก = นอยซ์สั้นๆ ผ่าน bandpass + envelope แหลม
+            function click(at, dur, freq, vol) {
+                const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+                const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+                const d = buf.getChannelData(0);
+                for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+                const src = ctx.createBufferSource(); src.buffer = buf;
+                const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = 0.9;
+                const g = ctx.createGain();
+                g.gain.setValueAtTime(0.0001, at);
+                g.gain.exponentialRampToValueAtTime(vol, at + 0.002);
+                g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+                src.connect(bp); bp.connect(g); g.connect(ctx.destination);
+                src.start(at); src.stop(at + dur + 0.01);
+            }
+            // ชัตเตอร์กล้อง = 2 คลิกติดกัน (ม่านเปิด-ปิด) ได้ฟีล "แช้ะ-แชะ"
+            click(t0,        0.045, 2600, 0.9);
+            click(t0 + 0.06, 0.060, 1700, 0.7);
+        }
+
+        function triggerFlash() {
+            const f = document.getElementById('flash-overlay');
+            f.classList.add('flash-active');
+            setTimeout(() => f.classList.remove('flash-active'), 500);
+        }
+
+        function snap(idx) {
+            // โหมดฟิชอาย: WebGL canvas ทำ crop+กลับซ้ายขวา+โป่ง ให้แล้ว ดึงรูปออกได้เลย
+            if (cameraMode === 'fisheye' && fisheye && fisheye.gl) {
+                drawFisheyeOnce();
+                photos.push(fisheye.canvas.toDataURL('image/png'));
+                document.querySelectorAll('.dot')[idx].classList.add('active');
+                setTimeout(() => takeNext(idx + 1), 1500);
+                return;
+            }
+            const v = document.getElementById('video');
+            const vw = v.videoWidth, vh = v.videoHeight;
+            const c = document.createElement('canvas');
+            const ctx = c.getContext('2d');
+
+            // CROP รูปจากกล้องให้ตรง "สัดส่วนช่อง" ของเลย์เอาต์นั้น (เห็นเท่าที่จะปริ้นจริง)
+            const geom = getLayoutGeom(currentLayout);
+            const targetRatio = geom.cellW / geom.cellH;  // กว้าง / สูง
+            let sw, sh;
+            if (vw / vh > targetRatio) { sh = vh; sw = vh * targetRatio; }
+            else { sw = vw; sh = vw / targetRatio; }
+            const sx = (vw - sw) / 2, sy = (vh - sh) / 2;
+
+            c.width = Math.round(sw); c.height = Math.round(sh);
+            // กลับด้านภาพ (กล้องหน้า) ให้เหมือนมองกระจก
+            ctx.translate(c.width, 0); ctx.scale(-1, 1);
+            ctx.drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
+
+            photos.push(c.toDataURL('image/png'));
+            document.querySelectorAll('.dot')[idx].classList.add('active');
+            setTimeout(() => takeNext(idx + 1), 1500);
+        }
+
+        function resetAndRetake() {
+            if (retakeUsed) return;   // retake ได้ครั้งเดียวต่อรอบ — กดซ้ำไม่ทำงาน
+            retakeUsed = true;
+            photos = [];
+            startCamera();
+        }
+
+        // ตรวจ (สำหรับโหมด auto) ว่ากรอบ "เจาะรู" ช่องรูปไว้ไหม = โปร่งใสพอจะวางรูปไว้ใต้กรอบ
+        // สแกน alpha เฉพาะพื้นที่ช่องรูป (window) ของไฟล์กรอบ ถ้าโปร่งใสเกิน ~15% ถือว่าเจาะรูแล้ว
+        // (กรอบเก่าช่องรูปทึบ = 0% → คืน false → รูปทับบนกรอบแบบเดิม ไม่โดนบัง)
+        function frameWindowIsCut(ovImg, geom) {
+            try {
+                const c = document.createElement('canvas');
+                c.width = ovImg.width; c.height = ovImg.height;
+                const cx = c.getContext('2d');
+                cx.drawImage(ovImg, 0, 0);
+                // map พิกัดช่องรูป (อ้างอิงที่ W×totalH) ลงบนขนาดจริงของไฟล์กรอบ
+                const sx = ovImg.width / geom.W, sy = ovImg.height / geom.totalH;
+                const wx = Math.round(geom.M * sx);
+                const wy = Math.round(geom.H_HDR * sy);
+                const ww = Math.max(1, Math.round(geom.winW * sx));
+                const wh = Math.max(1, Math.round(geom.winH * sy));
+                const data = cx.getImageData(wx, wy, ww, wh).data;
+                let transparent = 0, total = 0;
+                for (let p = 3; p < data.length; p += 16) {   // เช็ค alpha ทุกๆ 4 พิกเซลพอ (เร็วขึ้น)
+                    total++;
+                    if (data[p] < 50) transparent++;
+                }
+                return total > 0 && (transparent / total) > 0.15;
+            } catch (e) { console.error('frameWindowIsCut', e); return false; }
+        }
+
+        // วาดรูปแบบ object-fit: cover ลงในกรอบ (x,y,w,h) โดยไม่ยืดผิดสัดส่วน
+        function drawImageCover(ctx, img, x, y, w, h) {
+            const ir = img.width / img.height, dr = w / h;
+            let sw, sh, sx, sy;
+            if (ir > dr) { sh = img.height; sw = img.height * dr; sx = (img.width - sw) / 2; sy = 0; }
+            else { sw = img.width; sh = img.width / dr; sx = 0; sy = (img.height - sh) / 2; }
+            ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+        }
+
+        // สร้างใบเสร็จ 1 ใบ: overlaySrc = รูปกรอบที่วางทับ, grayscale = true เพื่อแปลงเป็นขาวดำ (สำหรับปริ้น)
+        // คืนค่าเป็น dataURL (jpeg)
+        async function composeReceipt(overlaySrc, grayscale) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // เรขาคณิตเดียวกับตอน crop กล้อง (ช่องรูปมี margin เว้นข้าง)
+            const geom = getLayoutGeom(currentLayout);
+
+            const loadImage = (src) => new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                img.src = src;
+            });
+
+            // โหลดรูปถ่ายทั้งหมด (crop มาตรงสัดส่วนช่องแล้ว)
+            const imgs = [];
+            for (let i = 0; i < photos.length; i++) imgs.push(await loadImage(photos[i]));
+
+            canvas.width = geom.W;
+            canvas.height = geom.totalH;
+
+            // พื้นหลังขาว
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, geom.W, geom.totalH);
+
+            // โหลดรูปกรอบไว้ก่อน (ใช้ทั้งตอนตรวจ "เจาะรู" และตอนวาด)
+            const ov = frameSet(overlaySrc) ? await loadImage(overlaySrc) : null;
+
+            // ตัดสินใจชั้นรูป: frameOnTop = กรอบทับบนรูป (รูปอยู่ใต้กรอบ) ตามที่ลูกค้าขอ
+            //   under = บังคับรูปใต้กรอบ · over = บังคับรูปบนกรอบ (แบบเดิม) · auto = เดาจากกรอบว่าเจาะรูไหม
+            const layerMode = getPhotoLayerMode();
+            let frameOnTop;
+            if (layerMode === 'under') frameOnTop = true;
+            else if (layerMode === 'over') frameOnTop = false;
+            else frameOnTop = ov ? frameWindowIsCut(ov, geom) : false;   // auto
+
+            // วาดรูปถ่ายทุกใบลงช่อง (มี margin เว้นข้าง)
+            const drawPhotos = () => {
+                for (let i = 0; i < imgs.length; i++) {
+                    const col = i % geom.cols;
+                    const row = Math.floor(i / geom.cols);
+                    const x = geom.xOffset + col * (geom.cellW + geom.G);
+                    const y = geom.H_HDR + row * (geom.cellH + geom.G);
+                    drawImageCover(ctx, imgs[i], x, y, geom.cellW, geom.cellH);
+                }
+            };
+            // วางกรอบเต็มกระดาษ — ถ้ามีกรอบใช้กรอบ ไม่งั้นแถบดำหัว-ท้าย (อยู่นอกพื้นที่รูป ไม่บังรูป)
+            const drawFrame = () => {
+                if (ov) {
+                    ctx.drawImage(ov, 0, 0, geom.W, geom.totalH);
+                } else {
+                    ctx.fillStyle = "#000";
+                    ctx.fillRect(0, 0, geom.W, geom.H_HDR);
+                    ctx.fillRect(0, geom.totalH - geom.H_FTR, geom.W, geom.H_FTR);
+                }
+            };
+
+            // frameOnTop: รูปอยู่ล่าง กรอบ PNG (เจาะรู) ทับบน → ทำกรอบได้หลากหลายขึ้น (ลวดลาย/มุมโค้ง/เงา ล้ำขอบรูปได้)
+            // ไม่งั้น: กรอบอยู่ล่าง รูปทับบน (แบบเดิม รองรับกรอบช่องรูปทึบที่ยังไม่ได้เจาะรู)
+            if (frameOnTop) { drawPhotos(); drawFrame(); }
+            else { drawFrame(); drawPhotos(); }
+
+            // แปลงเป็นขาวดำสำหรับปริ้นกระดาษ (ให้เส้น/ลายกรอบชัดบนเครื่องปริ้นความร้อน)
+            // + ปรับ offset/contrast ตามที่เจ้าของร้านตั้งในหน้า "print adjust" (เฉพาะรูปปริ้น ไม่กระทบรูปสี)
+            if (grayscale) {
+                const im = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const d = im.data;
+                for (let p = 0; p < d.length; p += 4) {
+                    let g = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
+                    g = Math.round(bwAdjust(g, bwOffset, bwContrast));
+                    d[p] = d[p + 1] = d[p + 2] = g;
+                }
+                ctx.putImageData(im, 0, 0);
+            }
+
+            return canvas.toDataURL('image/jpeg', 0.92);
+        }
+
+        async function generatePreview() {
+            showPage('page-review');
+            // retake ได้ครั้งเดียวต่อรอบ — ถ้าใช้ไปแล้วซ่อนปุ่ม RETAKE เหลือแต่ PRINT (สงสารคนรอ)
+            const rtBtn = document.getElementById('btn-retake');
+            if (rtBtn) rtBtn.style.display = retakeUsed ? 'none' : '';
+            const finalImg = document.getElementById('final-preview');
+            finalImg.classList.remove('printed');
+            finalImg.src = "";
+            try {
+                // โชว์บนจอ = กรอบสี (ดิจิทัล) ของกลุ่มปัจจุบัน และเก็บไว้ใช้อัป Drive ทำ QR
+                const colorFrame = (frames[currentCategory()][selectedFrameIdx] || {}).full || '';
+                displayReceiptDataURL = await composeReceipt(colorFrame, false);
+                finalImg.src = displayReceiptDataURL;
+                setTimeout(() => finalImg.classList.add('printed'), 300);
+            } catch (err) {
+                console.error("Preview failed:", err);
+            }
+        }
+
+        async function confirmPrint() {
+            // รีเซ็ตหน้า print ให้เป็นหน้า loading สะอาดๆ
+            stopPaySlipScan();
+            document.getElementById('print-loader').style.display = 'block';
+            document.getElementById('print-status').innerText = 'กำลังเตรียมรูปของคุณ...';
+            document.getElementById('qrcode-container').style.display = 'none';
+            document.getElementById('qrcode').innerHTML = '';
+            document.getElementById('pay-slip-box').style.display = 'none';
+            document.getElementById('print-countdown').innerText = '';
+            const doneBtn = document.querySelector('.btn-done-pill');
+            doneBtn.removeAttribute('style');
+            doneBtn.innerText = 'done';
+            doneBtn.onclick = goHome;
+
+            showPage('page-print');
+
+            const st = (frames[currentCategory()] || {})[selectedFrameIdx] || {};
+
+            // รูปสี = โชว์ดิจิทัล + อัป Drive ทำ QR ให้ลูกค้าโหลด
+            const colorData = displayReceiptDataURL || await composeReceipt(st.full || '', false);
+
+            // รูปขาวดำ = ส่งไปปริ้นกระดาษ thermal (ถ้าไม่ได้อัพกรอบขาวดำ จะ fallback เป็นกรอบสีเดิม)
+            const printFrame = frameSet(st.print) ? st.print : (st.full || '');
+            let printData;
+            try { printData = await composeReceipt(printFrame, true); } catch (e) { printData = colorData; }
+
+            // ส่งไปเครื่องปริ้น thermal (จะทำงานเมื่อมีตัวเชื่อมเครื่องปริ้นในแอป)
+            if (window.Android.printThermal) {
+                try { window.Android.printThermal(printData, printQuantity); } catch (e) { console.error('printThermal error', e); }
+            }
+
+            // อัปรูปสีขึ้น Drive แล้วทำ QR ให้ลูกค้า (รูปดิจิทัล = สี)
+            window.Android.printPhoto(colorData, printQuantity);
+        }
+
+        // ตัวจับเวลานับถอยหลังกลับหน้าหลักอัตโนมัติ (หน้าสแกนรับรูป)
+        let printHomeTimer = null;
+        function startPrintAutoHome(sec) {
+            clearPrintAutoHome();
+            let remaining = sec;
+            const el = document.getElementById('print-countdown');
+            el.innerText = `กลับสู่หน้าหลักอัตโนมัติใน ${remaining} วินาที`;
+            printHomeTimer = setInterval(() => {
+                remaining--;
+                if (remaining <= 0) {
+                    goHome(); // goHome จะ clearPrintAutoHome ให้เอง
+                } else {
+                    el.innerText = `กลับสู่หน้าหลักอัตโนมัติใน ${remaining} วินาที`;
+                }
+            }, 1000);
+        }
+        function clearPrintAutoHome() {
+            if (printHomeTimer) { clearInterval(printHomeTimer); printHomeTimer = null; }
+            const el = document.getElementById('print-countdown');
+            if (el) el.innerText = '';
+        }
+
+        window.onPrintComplete = function(data) {
+            if (typeof data === 'string') data = JSON.parse(data);
+            if (data.status === "OK") {
+                // ซ่อน loading แสดง QR รับรูป
+                document.getElementById('print-loader').style.display = 'none';
+                document.getElementById('print-status').innerText = 'สแกนเพื่อรับรูป';
+                document.getElementById('pay-slip-box').style.display = 'none';
+                document.getElementById('qrcode-container').style.display = 'flex';
+                document.getElementById('qrcode').innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(data.url)}" style="border-radius:10px;">`;
+
+                const doneBtn = document.querySelector('.btn-done-pill');
+                doneBtn.removeAttribute('style');
+                doneBtn.innerText = 'done';
+                doneBtn.onclick = goHome;
+
+                startPrintAutoHome(15);
+            }
+        };
+    </script>
+</body>
+</html>
