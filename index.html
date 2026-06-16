@@ -185,6 +185,17 @@
         .btn-retake { background: #ff6b6b; }
         .btn-print { background: #1dd1a1; }
 
+        /* เลือกจำนวนสำเนาบนหน้า review (โชว์เฉพาะ event mode) — kiosk จ่ายตามจำนวนแล้วจึงซ่อน */
+        .copies-bar { display: none; flex-direction: column; align-items: center; gap: 12px; margin: 36px auto 0; }
+        #page-review.show-copies .copies-bar { display: flex; }
+        #page-review.show-copies .action-bar { margin-top: 28px; }
+        .copies-label { font-size: 16px; color: #555; font-weight: 600; }
+        .copies-stepper { display: flex; align-items: center; gap: 26px; }
+        .copies-btn { width: 58px; height: 58px; border-radius: 50%; border: none; background: #1dd1a1; color: #fff; font-size: 30px; font-weight: bold; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .copies-btn:active { transform: scale(0.92); }
+        .copies-btn:disabled { background: #e0e0e0; cursor: default; }
+        .copies-count { font-size: 36px; font-weight: bold; color: #333; min-width: 64px; text-align: center; }
+
         /* --- Page 5: PRINTING & QR --- */
         #page-print { background: #fff; text-align: center; }
         .print-loader-container { margin-bottom: 20px; }
@@ -287,10 +298,30 @@
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-home-video', true)">home video<span>edit</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-printer-setup', true)">printer<span>setup (usb/bt/wifi)</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-qr-edit', true)">qrcode<span>edit</span></button>
+            <button class="btn-menu-new" id="btn-opt-fisheye" style="display:none;" onclick="toggleOverlay('overlay-fisheye', true)">fisheye<span>zoom / โป่ง</span></button>
             <button class="btn-menu-new" onclick="checkAppUpdate()" style="font-size:16px; padding:15px;">app update<span id="app-version-label">check now</span></button>
             <button class="btn-menu-new" onclick="showDeviceInfo()" style="font-size:16px; padding:15px;">device<span>license info</span></button>
         </div>
         <button class="btn-back-link" onclick="toggleOverlay('overlay-main', false)">back</button>
+    </div>
+
+    <!-- FISHEYE SETTING (ปรับความโป่ง/ซูม) — ปุ่มเปิดถูกซ่อนจนกว่า FISHEYE_ENABLED = true -->
+    <div id="overlay-fisheye" class="overlay">
+        <div class="boot-logo-text">reciept<span>photobooth</span></div>
+        <div class="overlay-subtitle">fisheye</div>
+        <div class="overlay-menu" style="gap: 16px;">
+            <p style="color:#888; font-size:13px; margin:0; text-align:center; max-width:520px;">
+                ปรับความโป่ง/ซูมกลางภาพของเลนส์ฟิชอาย — เลื่อนแล้วค่าจะเซฟอัตโนมัติ
+                (มีผลกับรูปที่ถ่ายในโหมดฟิชอาย)
+            </p>
+            <div style="display:flex; align-items:center; gap:12px; width:90%; max-width:450px; align-self:center;">
+                <span style="color:#888; font-size:13px;">น้อย</span>
+                <input type="range" id="fisheye-range" min="0" max="1.5" step="0.05" value="0.5" style="flex:1;" oninput="onFisheyeRange(this.value)">
+                <span style="color:#888; font-size:13px;">มาก</span>
+            </div>
+            <div style="color:#1dd1a1; font-weight:bold; text-align:center; font-size:18px;">ความโป่ง: <span id="fisheye-val">0.50</span></div>
+        </div>
+        <button class="btn-back-link" onclick="toggleOverlay('overlay-fisheye', false)">back</button>
     </div>
 
     <div id="overlay-frames" class="overlay">
@@ -549,6 +580,14 @@
             <div class="slot-bezel"><div class="slot-bezel-hole"></div></div>
             <div class="paper-scroll-area"><img id="final-preview" src="" class="receipt-image"></div>
         </div>
+        <div class="copies-bar">
+            <div class="copies-label">จำนวนสำเนา / Copies</div>
+            <div class="copies-stepper">
+                <button class="copies-btn" id="copies-minus" onclick="changeCopies(-1)">&minus;</button>
+                <span class="copies-count" id="copies-count">1</span>
+                <button class="copies-btn" id="copies-plus" onclick="changeCopies(1)">+</button>
+            </div>
+        </div>
         <div class="action-bar">
             <button id="btn-retake" class="btn-main btn-retake" onclick="resetAndRetake()">RETAKE</button>
             <button class="btn-main btn-print" onclick="confirmPrint()">PRINT</button>
@@ -584,17 +623,34 @@
         let totalPhotos = 3;
         let photos = [];
         let printQuantity = 1;
+        const MAX_COPIES = 50;   // เพดานจำนวนสำเนาบนหน้า review (event mode)
         let cameraStream = null;
         let selectedFrameIdx = 1;
         let frameTimer = null;
         let layoutTimer = null;
         let retakeUsed = false;   // retake กดได้ครั้งเดียวต่อรอบถ่าย (กันลูกค้ากดรัวๆ ให้คนรอ)
 
+        // ===== สวิตช์เปิด/ปิดระบบฟิชอาย (ซ่อนไว้ก่อน) =====
+        // false = ซ่อนทั้งระบบ (ลูกค้าข้ามหน้าเลือกโหมดกล้อง เข้ากล้องปกติเลย + ปุ่มตั้งค่าในเมนู option ก็ซ่อน)
+        // วันไหนอยากเปิดให้ลูกค้าเห็น: เปลี่ยนเป็น true แล้วอัปไฟล์ออนไลน์ (บั๊มพ์ html_version) = เปิดได้ทันที
+        const FISHEYE_ENABLED = false;
+
         // โหมดกล้อง (ปกติ/ฟิชอาย) — ลูกค้าเลือกเองหน้า page-cammode
         let cameraMode = 'normal';      // 'normal' | 'fisheye'
         let camModeTimer = null;        // auto-cancel หน้าเลือกโหมดกล้อง
         let fisheye = null;             // สถานะ WebGL ฟิชอาย { canvas, gl, ... } / null = ปิด
-        const FISHEYE_STRENGTH = 0.5;   // ความแรงเลนส์โป่ง (กลางๆ) — เพิ่ม=โป่งมากขึ้น
+
+        // ความแรงเลนส์โป่ง/ซูมกลางภาพ — ปรับได้ในหน้า option (เก็บใน localStorage จึงอัปแบบ HTML ล้วนได้)
+        // เพิ่ม = โป่ง/ซูมกลางมากขึ้น · ค่าเริ่มต้น 0.5 (กลางๆ)
+        let fisheyeStrength = 0.5;
+        function loadFisheyeStrength() {
+            try { const v = parseFloat(localStorage.getItem('fisheyeStrength')); if (!isNaN(v)) fisheyeStrength = v; }
+            catch (e) {}
+        }
+        function setFisheyeStrength(v) {
+            fisheyeStrength = v;
+            try { localStorage.setItem('fisheyeStrength', String(v)); } catch (e) {}
+        }
 
         // กรอบแยก 2 กลุ่มตามสัดส่วนช่องรูป: sg = Solo&Grid (4:5), st = Strip&Twin (9:16)
         // แต่ละสไตล์มี 2 รูป: full = กรอบสี (ดิจิทัล/QR), print = กรอบขาวดำ (ปริ้นกระดาษ)
@@ -667,6 +723,14 @@
 
         setTimeout(loadSavedFrames, 500);
         setTimeout(loadKioskConfig, 500);   // โหลดราคา + ค่าปรับขาวดำ ที่เจ้าของร้านตั้งไว้
+        setTimeout(loadFisheyeStrength, 500);
+        setTimeout(applyFeatureFlags, 500);   // ซ่อน/โชว์ UI ตามสวิตช์ฟีเจอร์ (เช่น FISHEYE_ENABLED)
+
+        // ซ่อน/โชว์ UI ตามสวิตช์ฟีเจอร์ — เปิดฟิชอายแค่เปลี่ยน FISHEYE_ENABLED = true แล้วอัปไฟล์
+        function applyFeatureFlags() {
+            const fbtn = document.getElementById('btn-opt-fisheye');
+            if (fbtn) fbtn.style.display = FISHEYE_ENABLED ? '' : 'none';
+        }
 
         // ===== Device Lock / License =====
         function initActivation() {
@@ -735,7 +799,23 @@
             if (id === 'overlay-print-adjust' && active) loadBwAdjustPanel();
             if (id === 'overlay-printer-setup' && active) loadPrinterSetup();
             if (id === 'overlay-home-video' && active) refreshHomeVideoStatus();
+            if (id === 'overlay-fisheye' && active) loadFisheyePanel();
             if (id === 'overlay-main' && active) refreshVersionLabel();
+        }
+
+        // ===== Fisheye setting (ปรับความโป่ง/ซูม) =====
+        function loadFisheyePanel() {
+            const r = document.getElementById('fisheye-range');
+            const el = document.getElementById('fisheye-val');
+            if (r) r.value = fisheyeStrength;
+            if (el) el.textContent = fisheyeStrength.toFixed(2);
+        }
+        function onFisheyeRange(v) {
+            const n = parseFloat(v);
+            setFisheyeStrength(n);
+            const el = document.getElementById('fisheye-val');
+            if (el) el.textContent = n.toFixed(2);
+            // ถ้ากำลังพรีวิวกล้องฟิชอายอยู่ ภาพจะอัปเดตเองทุกเฟรม (อ่าน fisheyeStrength สดทุกครั้ง)
         }
 
         // ===== Home video (เปลี่ยน/รีเซ็ตวิดีโอหน้าหลัก) =====
@@ -1349,6 +1429,13 @@
         function confirmFrameSelection(idx) {
             stopFrameTimer();
             selectedFrameIdx = idx;
+            // ฟิชอายถูกซ่อน → ข้ามหน้าเลือกโหมด เข้ากล้องปกติเลย (flow เหมือนไม่มีระบบฟิชอาย)
+            if (!FISHEYE_ENABLED) {
+                cameraMode = 'normal';
+                retakeUsed = false;
+                startCamera();
+                return;
+            }
             // ไปหน้าเลือกโหมดกล้อง (ปกติ/ฟิชอาย) ก่อนเข้ากล้องจริง
             showPage('page-cammode');
             startCamModeTimer(15);
@@ -1493,7 +1580,7 @@
             gl.bindTexture(gl.TEXTURE_2D, fe.tex);
             try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, v); }
             catch (e) { return; }   // เฟรมยังไม่พร้อม
-            gl.uniform1f(fe.u_strength, FISHEYE_STRENGTH);
+            gl.uniform1f(fe.u_strength, fisheyeStrength);
             gl.uniform1f(fe.u_aspect, targetRatio);
             gl.uniform4f(fe.u_crop, sx / vw, sy / vh, sw / vw, sh / vh);
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -1756,8 +1843,32 @@
             return canvas.toDataURL('image/jpeg', 0.92);
         }
 
+        // ===== เลือกจำนวนสำเนาบนหน้า review (event mode) =====
+        // event = ฟรี เลือกสำเนาเองได้ (1–MAX_COPIES) ; kiosk = จ่ายตามจำนวนแล้ว ไม่โชว์ตัวเลือก
+        function renderCopies() {
+            const cnt = document.getElementById('copies-count');
+            if (cnt) cnt.innerText = printQuantity;
+            const minus = document.getElementById('copies-minus');
+            const plus = document.getElementById('copies-plus');
+            if (minus) minus.disabled = printQuantity <= 1;
+            if (plus) plus.disabled = printQuantity >= MAX_COPIES;
+        }
+        function changeCopies(delta) {
+            printQuantity = Math.min(MAX_COPIES, Math.max(1, printQuantity + delta));
+            renderCopies();
+        }
+
         async function generatePreview() {
             showPage('page-review');
+            // event mode: ให้เลือกจำนวนสำเนาได้ (เริ่มที่ 1 ทุกรอบ) ; kiosk: ใช้จำนวนที่จ่ายเงินมา ซ่อนตัวเลือก
+            const reviewPage = document.getElementById('page-review');
+            if (systemMode === 'event') {
+                printQuantity = 1;
+                reviewPage.classList.add('show-copies');
+                renderCopies();
+            } else {
+                reviewPage.classList.remove('show-copies');
+            }
             // retake ได้ครั้งเดียวต่อรอบ — ถ้าใช้ไปแล้วซ่อนปุ่ม RETAKE เหลือแต่ PRINT (สงสารคนรอ)
             const rtBtn = document.getElementById('btn-retake');
             if (rtBtn) rtBtn.style.display = retakeUsed ? 'none' : '';
