@@ -188,6 +188,15 @@
         /* เลือกจำนวนสำเนาบนหน้า review (โชว์เฉพาะ event mode) — kiosk จ่ายตามจำนวนแล้วจึงซ่อน */
         .copies-bar { display: none; flex-direction: column; align-items: center; gap: 12px; margin: 36px auto 0; }
         #page-review.show-copies .copies-bar { display: flex; }
+
+        /* โหมด kiosk: เลือกจำนวนพิมพ์ตามโควต้าที่จ่าย (สูงสุด 3) ที่หน้า review */
+        .quota-bar { display: none; flex-direction: column; align-items: center; gap: 12px; margin: 30px auto 0; }
+        #page-review.show-quota .quota-bar { display: flex; }
+        .quota-label { color: #1dd1a1; font-weight: bold; font-size: 17px; letter-spacing: 1px; }
+        .quota-btns { display: flex; gap: 14px; }
+        .quota-btn { width: 78px; height: 78px; border-radius: 18px; border: 2px solid #333; background: #0c0c0c; color: #fff; font-size: 30px; font-weight: bold; cursor: pointer; }
+        .quota-btn.sel { border-color: #1dd1a1; color: #1dd1a1; background: #10231d; }
+        .quota-btn:disabled { opacity: 0.25; cursor: default; }
         #page-review.show-copies .action-bar { margin-top: 28px; }
         .copies-label { font-size: 16px; color: #555; font-weight: 600; }
         .copies-stepper { display: flex; align-items: center; gap: 26px; }
@@ -589,6 +598,14 @@
                 <button class="copies-btn" id="copies-plus" onclick="changeCopies(1)">+</button>
             </div>
         </div>
+        <div class="quota-bar">
+            <div class="quota-label" id="quota-label">พิมพ์ได้อีก 3 รูป</div>
+            <div class="quota-btns" id="quota-btns">
+                <button class="quota-btn" data-n="1" onclick="selectQuota(1)">1</button>
+                <button class="quota-btn" data-n="2" onclick="selectQuota(2)">2</button>
+                <button class="quota-btn" data-n="3" onclick="selectQuota(3)">3</button>
+            </div>
+        </div>
         <div class="action-bar">
             <button id="btn-retake" class="btn-main btn-retake" onclick="resetAndRetake()">RETAKE</button>
             <button class="btn-main btn-print" onclick="confirmPrint()">PRINT</button>
@@ -601,6 +618,7 @@
         <h2 id="print-status">Printed!</h2>
         <div id="qrcode-container" style="display:none;">
             <div id="qrcode"></div>
+            <button id="btn-print-again" style="display:none; padding:15px 60px; border-radius:50px; border:none; background:#1dd1a1; color:#fff; font-size:20px; font-weight:bold; cursor:pointer; margin-bottom:14px;" onclick="printAgain()">ถ่ายเพิ่ม</button>
             <button class="btn-done-pill" onclick="goHome()">done</button>
             <div id="print-countdown" style="margin-top:20px; color:#888; font-size:16px;"></div>
         </div>
@@ -625,6 +643,9 @@
         let photos = [];
         let printQuantity = 1;
         const MAX_COPIES = 50;   // เพดานจำนวนสำเนาบนหน้า review (event mode)
+        // โหมด kiosk: ลูกค้าจ่ายเป็นโควต้าจำนวนพิมพ์ (1–3) แล้วทยอยพิมพ์/ถ่ายเพิ่มจนครบ
+        let paidQuota = 0;        // จำนวนที่จ่ายมาทั้งรอบ
+        let remainingQuota = 0;   // จำนวนพิมพ์ที่เหลือใช้ได้
         let cameraStream = null;
         let selectedFrameIdx = 1;
         let frameTimer = null;
@@ -1128,6 +1149,7 @@
             stopFisheye();   // หยุด render loop ฟิชอาย กัน WebGL วิ่งค้างเปลือง GPU
             if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
             cameraStream = null;
+            paidQuota = 0; remainingQuota = 0;   // จบรอบลูกค้า → ล้างโควต้า (คนถัดไปจ่ายใหม่)
             showPage('page-home');
         }
 
@@ -1155,6 +1177,8 @@
 
         function goToPayment(qty, price) {
             printQuantity = qty;
+            paidQuota = qty;          // เปิดโควต้าตามที่จ่าย (ลูกค้าทยอยพิมพ์/ถ่ายเพิ่มได้จนครบ)
+            remainingQuota = qty;
             // ราคาจากที่เจ้าของร้านตั้งไว้ (ถ้าไม่ส่ง price มาก็ใช้ราคาที่ตั้งค่าไว้ตามจำนวนรูป)
             if (price == null) price = kioskPrices[qty];
             selectedKioskPrice = price;
@@ -1859,6 +1883,22 @@
             renderCopies();
         }
 
+        // ===== เลือกจำนวนพิมพ์ตามโควต้า (โหมด kiosk) =====
+        function selectQuota(n) {
+            if (n > remainingQuota) return;   // เกินที่เหลือ กดไม่ได้
+            printQuantity = n;
+            renderQuota();
+        }
+        function renderQuota() {
+            const label = document.getElementById('quota-label');
+            if (label) label.innerText = `พิมพ์ได้อีก ${remainingQuota} รูป`;
+            document.querySelectorAll('#quota-btns .quota-btn').forEach(b => {
+                const n = parseInt(b.dataset.n, 10);
+                b.disabled = n > remainingQuota;
+                b.classList.toggle('sel', n === printQuantity);
+            });
+        }
+
         async function generatePreview() {
             showPage('page-review');
             // event mode: ให้เลือกจำนวนสำเนาได้ (เริ่มที่ 1 ทุกรอบ) ; kiosk: ใช้จำนวนที่จ่ายเงินมา ซ่อนตัวเลือก
@@ -1866,9 +1906,14 @@
             if (systemMode === 'event') {
                 printQuantity = 1;
                 reviewPage.classList.add('show-copies');
+                reviewPage.classList.remove('show-quota');
                 renderCopies();
             } else {
+                // kiosk: เลือกจำนวนพิมพ์รอบนี้ได้ไม่เกินโควต้าที่เหลือ (ดีฟอลต์ = พิมพ์ที่เหลือทั้งหมด)
                 reviewPage.classList.remove('show-copies');
+                reviewPage.classList.add('show-quota');
+                printQuantity = remainingQuota > 0 ? remainingQuota : 1;
+                renderQuota();
             }
             // retake ได้ครั้งเดียวต่อรอบ — ถ้าใช้ไปแล้วซ่อนปุ่ม RETAKE เหลือแต่ PRINT (สงสารคนรอ)
             const rtBtn = document.getElementById('btn-retake');
@@ -1920,6 +1965,11 @@
 
             // อัปรูปสีขึ้น Drive แล้วทำ QR ให้ลูกค้า (รูปดิจิทัล = สี)
             window.Android.printPhoto(colorData, printQuantity);
+
+            // โหมด kiosk: หักโควต้าตามจำนวนที่พิมพ์รอบนี้ (event ไม่คิดโควต้า)
+            if (systemMode !== 'event') {
+                remainingQuota = Math.max(0, remainingQuota - printQuantity);
+            }
         }
 
         // ตัวจับเวลานับถอยหลังกลับหน้าหลักอัตโนมัติ (หน้าสแกนรับรูป)
@@ -1944,6 +1994,15 @@
             if (el) el.innerText = '';
         }
 
+        // โหมด kiosk: ใช้โควต้าที่เหลือถ่าย/พิมพ์รอบใหม่ (เริ่มเลือก layout ใหม่)
+        function printAgain() {
+            clearPrintAutoHome();
+            retakeUsed = false;
+            photos = [];
+            displayReceiptDataURL = '';
+            showPage('page-layout');   // showPage จะเริ่มตัวจับเวลา auto-cancel ให้เอง
+        }
+
         window.onPrintComplete = function(data) {
             if (typeof data === 'string') data = JSON.parse(data);
             if (data.status === "OK") {
@@ -1959,7 +2018,16 @@
                 doneBtn.innerText = 'done';
                 doneBtn.onclick = goHome;
 
-                startPrintAutoHome(15);
+                // โหมด kiosk: ถ้ายังเหลือโควต้า เปิดปุ่ม "ถ่ายเพิ่ม" ให้ใช้สิทธิ์ที่เหลือ
+                const againBtn = document.getElementById('btn-print-again');
+                if (againBtn && systemMode !== 'event' && remainingQuota > 0) {
+                    againBtn.style.display = 'block';
+                    againBtn.innerText = `ถ่ายเพิ่ม (เหลือ ${remainingQuota} รูป)`;
+                    startPrintAutoHome(30);   // ให้เวลามากหน่อย เผื่อลูกค้าจะถ่ายเพิ่ม
+                } else {
+                    if (againBtn) againBtn.style.display = 'none';
+                    startPrintAutoHome(15);
+                }
             }
         };
     </script>
