@@ -646,6 +646,10 @@
         // โหมด kiosk: ลูกค้าจ่ายเป็นโควต้าจำนวนพิมพ์ (1–3) แล้วทยอยพิมพ์/ถ่ายเพิ่มจนครบ
         let paidQuota = 0;        // จำนวนที่จ่ายมาทั้งรอบ
         let remainingQuota = 0;   // จำนวนพิมพ์ที่เหลือใช้ได้
+        // รอเครื่องพิมพ์กระดาษเสร็จก่อนค่อยขึ้น QR (กันงานพิมพ์ซ้อน + ลูกค้าไม่งงตอนพิมพ์หลายใบ)
+        let awaitingThermal = false;
+        let thermalTimer = null;
+        let pendingColorData = '';
         let cameraStream = null;
         let selectedFrameIdx = 1;
         let frameTimer = null;
@@ -1959,18 +1963,44 @@
             try { printData = await composeReceipt(printFrame, true); } catch (e) { printData = colorData; }
 
             // ส่งไปเครื่องปริ้น thermal (จะทำงานเมื่อมีตัวเชื่อมเครื่องปริ้นในแอป)
-            if (window.Android.printThermal) {
-                try { window.Android.printThermal(printData, printQuantity); } catch (e) { console.error('printThermal error', e); }
-            }
-
-            // อัปรูปสีขึ้น Drive แล้วทำ QR ให้ลูกค้า (รูปดิจิทัล = สี)
-            window.Android.printPhoto(colorData, printQuantity);
-
             // โหมด kiosk: หักโควต้าตามจำนวนที่พิมพ์รอบนี้ (event ไม่คิดโควต้า)
             if (systemMode !== 'event') {
                 remainingQuota = Math.max(0, remainingQuota - printQuantity);
             }
+
+            pendingColorData = colorData;
+            // flow "รอพิมพ์เสร็จค่อยขึ้น QR" ใช้เฉพาะ APK v1.5+ (apk 9) ที่ส่งสัญญาณ onThermalDone กลับมา
+            // APK เก่า/ไม่มีเครื่องพิมพ์ → ทำแบบเดิม (ยิงพิมพ์แล้วขึ้น QR เลย) กันค้างรอสัญญาณที่ไม่มา
+            let apkSupportsWait = false;
+            try { const mm = (window.Android.getAppVersion && window.Android.getAppVersion() || '').match(/apk\s*(\d+)/); apkSupportsWait = !!mm && parseInt(mm[1], 10) >= 9; } catch (e) {}
+            if (window.Android.printThermal && apkSupportsWait) {
+                // โชว์ "กำลังพิมพ์" แล้วรอจนพิมพ์กระดาษเสร็จจริง ค่อยขึ้น QR (กันงานพิมพ์ซ้อน + กันลูกค้าสับสนตอนพิมพ์หลายใบ)
+                document.getElementById('print-status').innerText =
+                    (printQuantity > 1) ? `กำลังพิมพ์ ${printQuantity} รูป กรุณารอสักครู่...` : 'กำลังพิมพ์... กรุณารอสักครู่';
+                awaitingThermal = true;
+                clearTimeout(thermalTimer);
+                thermalTimer = setTimeout(() => { if (awaitingThermal) { awaitingThermal = false; finishToQR(); } }, 180000); // กันค้างถ้าไม่มีสัญญาณกลับ
+                try { window.Android.printThermal(printData, printQuantity); }
+                catch (e) { console.error('printThermal error', e); awaitingThermal = false; clearTimeout(thermalTimer); finishToQR(); }
+            } else {
+                if (window.Android.printThermal) { try { window.Android.printThermal(printData, printQuantity); } catch (e) { console.error('printThermal error', e); } }
+                finishToQR();   // APK เก่า/ไม่มีเครื่องพิมพ์ → ขึ้น QR เลย (พฤติกรรมเดิม)
+            }
         }
+
+        // อัปรูปสีขึ้น Drive ทำ QR ให้ลูกค้า — เรียกหลังพิมพ์กระดาษเสร็จ (หรือเมื่อไม่มีเครื่องพิมพ์)
+        function finishToQR() {
+            document.getElementById('print-status').innerText = 'กำลังเตรียมรูป...';
+            window.Android.printPhoto(pendingColorData, printQuantity);
+        }
+
+        // Kotlin เรียกเมื่อส่งข้อมูลพิมพ์ครบทุกใบแล้ว (≈ พิมพ์กระดาษเสร็จ) → ค่อยขึ้น QR
+        window.onThermalDone = function() {
+            if (!awaitingThermal) return;   // ไม่ได้รออยู่ (เช่นใบทดสอบ) → ไม่ทำอะไร
+            awaitingThermal = false;
+            clearTimeout(thermalTimer);
+            finishToQR();
+        };
 
         // ตัวจับเวลานับถอยหลังกลับหน้าหลักอัตโนมัติ (หน้าสแกนรับรูป)
         let printHomeTimer = null;
