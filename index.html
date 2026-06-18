@@ -265,6 +265,26 @@
         .btn-cat.active-cat { border-color: #1dd1a1; background: #10231d; }
 
         @media (max-width: 600px) { .mode-container { flex-direction: column; } .qty-cards-container { flex-direction: column; } }
+
+        /* ===== ตกแต่งรูปด้วยสติ๊กเกอร์ (หน้า review) ===== */
+        .sticker-tray { display:none; gap:10px; overflow-x:auto; width:90%; max-width:400px; margin:14px auto 0; padding:6px 4px; }
+        #page-review.show-stickers .sticker-tray { display:flex; }
+        .sticker-tray-item { flex:0 0 auto; width:54px; height:54px; border-radius:12px; background:#161616; border:1px solid #2a2a2a; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:6px; }
+        .sticker-tray-item img { max-width:100%; max-height:100%; pointer-events:none; }
+        #sticker-layer { position:absolute; inset:0; z-index:20; pointer-events:none; }
+        #page-review.show-stickers #sticker-layer { pointer-events:auto; }
+        #page-review.show-stickers .paper-scroll-area { overflow:visible; }
+        .placed-sticker { position:absolute; transform:translate(-50%,-50%); touch-action:none; cursor:move; }
+        .placed-sticker img { width:100%; height:auto; display:block; pointer-events:none; -webkit-user-drag:none; }
+        .placed-sticker.sel { outline:2px dashed #1dd1a1; outline-offset:2px; }
+        .sticker-handle { position:absolute; width:26px; height:26px; border-radius:50%; display:none; align-items:center; justify-content:center; font-size:16px; font-weight:bold; line-height:1; box-shadow:0 2px 6px rgba(0,0,0,0.4); }
+        .placed-sticker.sel .sticker-handle { display:flex; }
+        .sticker-del { top:-13px; left:-13px; background:#ff6b6b; color:#fff; cursor:pointer; }
+        .sticker-resize { bottom:-13px; right:-13px; background:#1dd1a1; color:#003; cursor:nwse-resize; }
+        .sticker-mgr-item { position:relative; height:72px; border-radius:12px; background:#161616; border:1px solid #2a2a2a; display:flex; align-items:center; justify-content:center; padding:6px; }
+        .sticker-mgr-item.sel { border-color:#1dd1a1; background:#10231d; }
+        .sticker-mgr-item img { max-width:100%; max-height:100%; }
+        .sticker-mgr-del { position:absolute; top:-7px; right:-7px; width:22px; height:22px; border-radius:50%; background:#ff6b6b; color:#fff; font-weight:bold; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; line-height:1; }
     </style>
 </head>
 
@@ -308,11 +328,30 @@
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-home-video', true)">home video<span>edit</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-printer-setup', true)">printer<span>setup (usb/bt/wifi)</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-qr-edit', true)">qrcode<span>edit</span></button>
+            <button class="btn-menu-new" onclick="toggleOverlay('overlay-stickers', true)">stickers<span>edit / สติ๊กเกอร์</span></button>
             <button class="btn-menu-new" id="btn-opt-fisheye" style="display:none;" onclick="toggleOverlay('overlay-fisheye', true)">fisheye<span>zoom / โป่ง</span></button>
             <button class="btn-menu-new" onclick="checkAppUpdate()" style="font-size:16px; padding:15px;">app update<span id="app-version-label">check now</span></button>
             <button class="btn-menu-new" onclick="showDeviceInfo()" style="font-size:16px; padding:15px;">device<span>license info</span></button>
         </div>
         <button class="btn-back-link" onclick="toggleOverlay('overlay-main', false)">back</button>
+    </div>
+
+    <!-- STICKER MANAGER (เพิ่ม/ลบ สติ๊กเกอร์ + ตั้งเวลาหน้าตกแต่ง) -->
+    <div id="overlay-stickers" class="overlay">
+        <div class="boot-logo-text">reciept<span>photobooth</span></div>
+        <div class="overlay-subtitle">stickers</div>
+        <div style="display:flex; gap:12px; margin-bottom:14px;">
+            <button class="btn-menu-new" style="padding:14px 22px; font-size:17px;" onclick="addStickerViaPicker()">+ เพิ่ม<span>PNG</span></button>
+            <button class="btn-menu-new" id="sticker-select-toggle" style="padding:14px 22px; font-size:17px;" onclick="toggleStickerSelectMode()">เลือกหลายอัน<span>เพื่อลบ</span></button>
+        </div>
+        <div id="sticker-mgr-grid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; width:92%; max-width:480px; max-height:40vh; overflow-y:auto; padding:4px;"></div>
+        <button id="sticker-del-selected" style="display:none; margin-top:14px; padding:13px 30px; border-radius:50px; border:none; background:#ff6b6b; color:#fff; font-size:16px; font-weight:bold; cursor:pointer;" onclick="deleteSelectedStickers()">ลบที่เลือก (0)</button>
+        <div style="width:88%; max-width:460px; margin-top:22px; color:#ccc; font-size:14px;">
+            <div style="margin-bottom:8px;">⏱️ เวลาให้ลูกค้าตกแต่ง: <span id="deco-time-label" style="color:#1dd1a1; font-weight:bold;"></span></div>
+            <input type="range" id="deco-time-range" min="0" max="61" step="1" value="61" style="width:100%;" oninput="onDecoTimeChange(this.value)">
+            <div style="display:flex; justify-content:space-between; color:#666; font-size:11px;"><span>ปิด</span><span>60 วิ</span><span>ตลอดไป</span></div>
+        </div>
+        <button class="btn-back-link" onclick="toggleOverlay('overlay-stickers', false)">back</button>
     </div>
 
     <!-- FISHEYE SETTING (ปรับความโป่ง/ซูม) — ปุ่มเปิดถูกซ่อนจนกว่า FISHEYE_ENABLED = true -->
@@ -588,8 +627,10 @@
     <div id="page-review" class="page">
         <div class="printer-slot-machine">
             <div class="slot-bezel"><div class="slot-bezel-hole"></div></div>
-            <div class="paper-scroll-area"><img id="final-preview" src="" class="receipt-image"></div>
+            <div class="paper-scroll-area"><img id="final-preview" src="" class="receipt-image"><div id="sticker-layer"></div></div>
         </div>
+        <div class="sticker-tray" id="sticker-tray"></div>
+        <div id="deco-countdown" style="color:#1dd1a1; font-weight:bold; font-size:15px; min-height:20px; margin-top:4px;"></div>
         <div class="copies-bar">
             <div class="copies-label">จำนวนสำเนา / Copies</div>
             <div class="copies-stepper">
@@ -751,6 +792,8 @@
         setTimeout(loadKioskConfig, 500);   // โหลดราคา + ค่าปรับขาวดำ ที่เจ้าของร้านตั้งไว้
         setTimeout(loadFisheyeStrength, 500);
         setTimeout(applyFeatureFlags, 500);   // ซ่อน/โชว์ UI ตามสวิตช์ฟีเจอร์ (เช่น FISHEYE_ENABLED)
+        setTimeout(loadUserStickers, 0);      // โหลดสติ๊กเกอร์ที่เจ้าของร้านเพิ่มไว้ (defer กัน TDZ ของ let)
+        setTimeout(loadDecorationTime, 0);    // โหลดค่าเวลาหน้าตกแต่ง
 
         // ซ่อน/โชว์ UI ตามสวิตช์ฟีเจอร์ — เปิดฟิชอายแค่เปลี่ยน FISHEYE_ENABLED = true แล้วอัปไฟล์
         function applyFeatureFlags() {
@@ -826,6 +869,7 @@
             if (id === 'overlay-printer-setup' && active) loadPrinterSetup();
             if (id === 'overlay-home-video' && active) refreshHomeVideoStatus();
             if (id === 'overlay-fisheye' && active) loadFisheyePanel();
+            if (id === 'overlay-stickers' && active) openStickerManager();
             if (id === 'overlay-main' && active) refreshVersionLabel();
         }
 
@@ -1149,6 +1193,7 @@
 
         function goHome() {
             clearPrintAutoHome();
+            clearDecorationTimer();
             stopPaySlipScan();
             stopFisheye();   // หยุด render loop ฟิชอาย กัน WebGL วิ่งค้างเปลือง GPU
             if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
@@ -1755,6 +1800,8 @@
             if (retakeUsed) return;   // retake ได้ครั้งเดียวต่อรอบ — กดซ้ำไม่ทำงาน
             retakeUsed = true;
             photos = [];
+            clearDecorationTimer();
+            clearStickers();
             startCamera();
         }
 
@@ -1856,6 +1903,16 @@
             if (frameOnTop) { drawPhotos(); drawFrame(); }
             else { drawFrame(); drawPhotos(); }
 
+            // วาดสติ๊กเกอร์ที่ลูกค้าตกแต่งไว้ทับลงรูป (พิกัด normalized 0-1 → px ของ canvas)
+            for (const s of placedStickers) {
+                try {
+                    const sImg = await loadImage(s.src);
+                    const sw = s.nw * canvas.width;
+                    const sh = sw * (((sImg.naturalHeight || sImg.height) / (sImg.naturalWidth || sImg.width)) || 1);
+                    ctx.drawImage(sImg, s.nx * canvas.width - sw / 2, s.ny * canvas.height - sh / 2, sw, sh);
+                } catch (e) {}
+            }
+
             // แปลงเป็นขาวดำสำหรับปริ้นกระดาษ (ให้เส้น/ลายกรอบชัดบนเครื่องปริ้นความร้อน)
             // + ปรับ offset/contrast ตามที่เจ้าของร้านตั้งในหน้า "print adjust" (เฉพาะรูปปริ้น ไม่กระทบรูปสี)
             if (grayscale) {
@@ -1903,10 +1960,196 @@
             });
         }
 
+        // ===== ตกแต่งรูปด้วยสติ๊กเกอร์ (เฟส 1: วางบนหน้า review — ลาก/ย่อ-ขยาย/ลบ, รวมลงรูปตอนปริ้น) =====
+        const STICKERS_ENABLED = true;
+        const _svgSticker = s => "data:image/svg+xml," + encodeURIComponent(s);
+        // สติ๊กเกอร์พื้นฐานแถมให้ (เจ้าของร้านเพิ่ม PNG เองได้ในเฟส 2)
+        const DEFAULT_STICKERS = [
+            _svgSticker('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><path d="M50 86C20 64 10 44 18 30c7-12 24-12 32 2 8-14 25-14 32-2 8 14-2 34-32 56z" fill="#ff4d6d"/></svg>'),
+            _svgSticker('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><path d="M50 8l11 26 28 2-21 19 7 28-25-15-25 15 7-28-21-19 28-2z" fill="#ffd23f" stroke="#f4a900" stroke-width="2"/></svg>'),
+            _svgSticker('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><path d="M50 10c4 26 14 36 40 40-26 4-36 14-40 40-4-26-14-36-40-40 26-4 36-14 40-40z" fill="#fff3a0" stroke="#ffd23f" stroke-width="2"/></svg>'),
+            _svgSticker('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="100" viewBox="0 0 120 100"><rect x="6" y="8" width="108" height="62" rx="18" fill="#5ec6ff"/><path d="M30 70l-8 22 28-16z" fill="#5ec6ff"/><text x="60" y="50" font-size="30" font-family="Arial" font-weight="bold" fill="#003049" text-anchor="middle">HI!</text></svg>'),
+            _svgSticker('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" fill="#ffd23f" stroke="#f4a900" stroke-width="3"/><circle cx="36" cy="42" r="6" fill="#333"/><circle cx="64" cy="42" r="6" fill="#333"/><path d="M32 62c8 12 28 12 36 0" fill="none" stroke="#333" stroke-width="5" stroke-linecap="round"/></svg>'),
+            _svgSticker('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><path d="M16 72l7-40 16 20 11-30 11 30 16-20 7 40z" fill="#ffcf33" stroke="#e0a800" stroke-width="2"/><rect x="16" y="72" width="68" height="12" rx="3" fill="#ffcf33" stroke="#e0a800" stroke-width="2"/></svg>'),
+            _svgSticker('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="100" viewBox="0 0 80 100"><path d="M48 6L12 58h24l-10 36 40-56H40z" fill="#ffd23f" stroke="#e0a800" stroke-width="2"/></svg>'),
+        ];
+        let availableStickers = DEFAULT_STICKERS.slice();
+        let placedStickers = [];     // { src, nx, ny (center 0-1), nw (width 0-1), el }
+        let selectedSticker = null;
+        let stickerDrag = null;
+
+        function buildStickerTray() {
+            const tray = document.getElementById('sticker-tray');
+            if (!tray) return;
+            tray.innerHTML = '';
+            DEFAULT_STICKERS.concat(userStickers).forEach(src => {
+                const item = document.createElement('div');
+                item.className = 'sticker-tray-item';
+                const im = document.createElement('img'); im.src = src;
+                item.appendChild(im);
+                item.addEventListener('click', () => addSticker(src));
+                tray.appendChild(item);
+            });
+            const layer = document.getElementById('sticker-layer');
+            if (layer && !layer._init) {
+                layer._init = true;
+                layer.addEventListener('pointerdown', (e) => { if (e.target === layer) selectSticker(null); });
+            }
+        }
+        function clearStickers() {
+            placedStickers.forEach(s => { try { s.el.remove(); } catch (e) {} });
+            placedStickers = [];
+            selectedSticker = null;
+        }
+        function selectSticker(s) {
+            selectedSticker = s;
+            placedStickers.forEach(x => x.el.classList.toggle('sel', x === s));
+        }
+        function layoutSticker(s) {
+            s.el.style.left = (s.nx * 100) + '%';
+            s.el.style.top = (s.ny * 100) + '%';
+            s.el.style.width = (s.nw * 100) + '%';
+        }
+        function addSticker(src) {
+            const layer = document.getElementById('sticker-layer');
+            if (!layer) return;
+            const el = document.createElement('div');
+            el.className = 'placed-sticker';
+            const img = document.createElement('img'); img.src = src;
+            const del = document.createElement('div'); del.className = 'sticker-handle sticker-del'; del.textContent = '×';
+            const rez = document.createElement('div'); rez.className = 'sticker-handle sticker-resize';
+            el.appendChild(img); el.appendChild(del); el.appendChild(rez);
+            layer.appendChild(el);
+            const s = { src, nx: 0.5, ny: 0.5, nw: 0.3, el };
+            placedStickers.push(s);
+            layoutSticker(s);
+            selectSticker(s);
+            el.addEventListener('pointerdown', (e) => {
+                if (e.target === del || e.target === rez) return;
+                selectSticker(s); startStickerDrag(e, s, 'move');
+            });
+            rez.addEventListener('pointerdown', (e) => { e.stopPropagation(); selectSticker(s); startStickerDrag(e, s, 'resize'); });
+            del.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); removeSticker(s); });
+        }
+        function removeSticker(s) {
+            try { s.el.remove(); } catch (e) {}
+            placedStickers = placedStickers.filter(x => x !== s);
+            if (selectedSticker === s) selectedSticker = null;
+        }
+        function startStickerDrag(e, s, mode) {
+            e.preventDefault();
+            const layer = document.getElementById('sticker-layer');
+            const rect = layer.getBoundingClientRect();
+            stickerDrag = { s, mode, rect, sx: e.clientX, sy: e.clientY, nx: s.nx, ny: s.ny, nw: s.nw };
+            try { s.el.setPointerCapture(e.pointerId); } catch (er) {}
+            s.el.addEventListener('pointermove', onStickerDragMove);
+            s.el.addEventListener('pointerup', onStickerDragEnd);
+            s.el.addEventListener('pointercancel', onStickerDragEnd);
+        }
+        function onStickerDragMove(e) {
+            if (!stickerDrag) return;
+            const d = stickerDrag, s = d.s;
+            if (d.mode === 'move') {
+                s.nx = Math.min(1, Math.max(0, d.nx + (e.clientX - d.sx) / d.rect.width));
+                s.ny = Math.min(1, Math.max(0, d.ny + (e.clientY - d.sy) / d.rect.height));
+            } else {
+                s.nw = Math.min(0.95, Math.max(0.06, d.nw + (e.clientX - d.sx) / d.rect.width * 2));
+            }
+            layoutSticker(s);
+        }
+        function onStickerDragEnd(e) {
+            if (!stickerDrag) return;
+            const el = stickerDrag.s.el;
+            try { el.releasePointerCapture(e.pointerId); } catch (er) {}
+            el.removeEventListener('pointermove', onStickerDragMove);
+            el.removeEventListener('pointerup', onStickerDragEnd);
+            el.removeEventListener('pointercancel', onStickerDragEnd);
+            stickerDrag = null;
+        }
+
+        // ----- จัดการสติ๊กเกอร์ในหน้า setting (เพิ่ม/ลบ PNG เอง) -----
+        let userStickers = [];
+        let stickerSelectMode = false;
+        let stickerSelectedIdx = new Set();
+        function loadUserStickers() { try { const a = JSON.parse(localStorage.getItem('userStickers') || '[]'); if (Array.isArray(a)) userStickers = a; } catch (e) {} }
+        function saveUserStickers() { try { localStorage.setItem('userStickers', JSON.stringify(userStickers)); } catch (e) { alert('พื้นที่เก็บสติ๊กเกอร์เต็ม — ลองลบบางอันออกก่อนนะคะ'); } }
+        function openStickerManager() { stickerSelectMode = false; stickerSelectedIdx.clear(); renderStickerManager(); syncDecoTimeUI(); }
+        function addStickerViaPicker() {
+            pickImage(dataUrl => {
+                const img = new Image();
+                img.onload = () => {
+                    const max = 240; let w = img.width, h = img.height;
+                    if (w > max || h > max) { const r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
+                    const c = document.createElement('canvas'); c.width = w; c.height = h;
+                    c.getContext('2d').drawImage(img, 0, 0, w, h);
+                    userStickers.push(c.toDataURL('image/png'));
+                    saveUserStickers();
+                    renderStickerManager();
+                };
+                img.src = dataUrl;
+            });
+        }
+        function renderStickerManager() {
+            const box = document.getElementById('sticker-mgr-grid');
+            if (!box) return;
+            box.innerHTML = '';
+            if (userStickers.length === 0) {
+                box.innerHTML = '<div style="grid-column:1/-1; color:#888; font-size:13px; padding:24px; text-align:center;">ยังไม่มีสติ๊กเกอร์ที่เพิ่มเอง — กด “+ เพิ่ม” เพื่อใส่ PNG</div>';
+            }
+            userStickers.forEach((src, idx) => {
+                const cell = document.createElement('div');
+                cell.className = 'sticker-mgr-item' + (stickerSelectedIdx.has(idx) ? ' sel' : '');
+                const im = document.createElement('img'); im.src = src; cell.appendChild(im);
+                if (stickerSelectMode) {
+                    cell.addEventListener('click', () => { if (stickerSelectedIdx.has(idx)) stickerSelectedIdx.delete(idx); else stickerSelectedIdx.add(idx); renderStickerManager(); });
+                } else {
+                    const x = document.createElement('div'); x.className = 'sticker-mgr-del'; x.textContent = '×';
+                    x.addEventListener('click', (e) => { e.stopPropagation(); userStickers.splice(idx, 1); saveUserStickers(); renderStickerManager(); });
+                    cell.appendChild(x);
+                }
+                box.appendChild(cell);
+            });
+            const delBtn = document.getElementById('sticker-del-selected');
+            if (delBtn) { delBtn.style.display = stickerSelectMode ? 'block' : 'none'; delBtn.textContent = `ลบที่เลือก (${stickerSelectedIdx.size})`; }
+            const selBtn = document.getElementById('sticker-select-toggle');
+            if (selBtn) selBtn.innerHTML = stickerSelectMode ? 'ยกเลิก<span>เลือก</span>' : 'เลือกหลายอัน<span>เพื่อลบ</span>';
+        }
+        function toggleStickerSelectMode() { stickerSelectMode = !stickerSelectMode; stickerSelectedIdx.clear(); renderStickerManager(); }
+        function deleteSelectedStickers() {
+            if (stickerSelectedIdx.size === 0) return;
+            Array.from(stickerSelectedIdx).sort((a, b) => b - a).forEach(i => userStickers.splice(i, 1));
+            saveUserStickers(); stickerSelectMode = false; stickerSelectedIdx.clear(); renderStickerManager();
+        }
+
+        // ----- ตั้งเวลาหน้าตกแต่ง (ปิด / 1–60 วิ / ตลอดไป) -----
+        let decorationTime = 61;   // 0 = ปิด, 1–60 = นับถอยหลังแล้วปริ้น, >60 = ตลอดไป (จนกดปริ้น)
+        let decoTimer = null;
+        function loadDecorationTime() { try { const v = parseInt(localStorage.getItem('decorationTime')); decorationTime = isNaN(v) ? 61 : v; } catch (e) { decorationTime = 61; } }
+        function decoTimeLabel(v) { v = +v; return v <= 0 ? 'ปิด (ไม่มีหน้าตกแต่ง)' : v > 60 ? 'ตลอดไป (จนกดปริ้น)' : v + ' วินาที'; }
+        function onDecoTimeChange(v) { decorationTime = +v; const l = document.getElementById('deco-time-label'); if (l) l.innerText = decoTimeLabel(v); try { localStorage.setItem('decorationTime', String(decorationTime)); } catch (e) {} }
+        function syncDecoTimeUI() { const r = document.getElementById('deco-time-range'); const l = document.getElementById('deco-time-label'); if (r) r.value = decorationTime; if (l) l.innerText = decoTimeLabel(decorationTime); }
+        function startDecorationTimer() {
+            clearDecorationTimer();
+            if (decorationTime <= 0 || decorationTime > 60) return;   // ปิด หรือ ตลอดไป → ไม่นับถอยหลัง
+            let remain = decorationTime;
+            const el = document.getElementById('deco-countdown');
+            if (el) el.innerText = `ตกแต่งได้อีก ${remain} วินาที`;
+            decoTimer = setInterval(() => {
+                remain--;
+                if (remain <= 0) { clearDecorationTimer(); confirmPrint(); }   // หมดเวลา → ปริ้นเลย
+                else if (el) el.innerText = `ตกแต่งได้อีก ${remain} วินาที`;
+            }, 1000);
+        }
+        function clearDecorationTimer() { if (decoTimer) { clearInterval(decoTimer); decoTimer = null; } const el = document.getElementById('deco-countdown'); if (el) el.innerText = ''; }
+
         async function generatePreview() {
             showPage('page-review');
             // event mode: ให้เลือกจำนวนสำเนาได้ (เริ่มที่ 1 ทุกรอบ) ; kiosk: ใช้จำนวนที่จ่ายเงินมา ซ่อนตัวเลือก
             const reviewPage = document.getElementById('page-review');
+            // เปิดโหมดตกแต่งสติ๊กเกอร์ — โชว์เมื่อเปิดใช้ + เวลาตกแต่งไม่ใช่ "ปิด" (decorationTime === 0)
+            clearDecorationTimer();
+            if (STICKERS_ENABLED && decorationTime > 0) { reviewPage.classList.add('show-stickers'); clearStickers(); buildStickerTray(); }
+            else { reviewPage.classList.remove('show-stickers'); clearStickers(); }
             if (systemMode === 'event') {
                 printQuantity = 1;
                 reviewPage.classList.add('show-copies');
@@ -1934,10 +2177,13 @@
             } catch (err) {
                 console.error("Preview failed:", err);
             }
+            // เริ่มนับถอยหลังเวลาตกแต่ง (เฉพาะตั้งค่า 1–60 วิ; ปิด/ตลอดไป จะ no-op)
+            if (STICKERS_ENABLED && decorationTime > 0) startDecorationTimer();
         }
 
         async function confirmPrint() {
             // รีเซ็ตหน้า print ให้เป็นหน้า loading สะอาดๆ
+            clearDecorationTimer();
             stopPaySlipScan();
             document.getElementById('print-loader').style.display = 'block';
             document.getElementById('print-status').innerText = 'กำลังเตรียมรูปของคุณ...';
@@ -1955,7 +2201,9 @@
             const st = (frames[currentCategory()] || {})[selectedFrameIdx] || {};
 
             // รูปสี = โชว์ดิจิทัล + อัป Drive ทำ QR ให้ลูกค้าโหลด
-            const colorData = displayReceiptDataURL || await composeReceipt(st.full || '', false);
+            // ถ้ามีสติ๊กเกอร์ ต้อง compose ใหม่ให้รูปดิจิทัล/QR มีสติ๊กเกอร์ด้วย (ไม่ใช้ภาพ preview ที่ยังไม่มีสติ๊กเกอร์)
+            const colorData = placedStickers.length ? await composeReceipt(st.full || '', false)
+                : (displayReceiptDataURL || await composeReceipt(st.full || '', false));
 
             // รูปขาวดำ = ส่งไปปริ้นกระดาษ thermal (ถ้าไม่ได้อัพกรอบขาวดำ จะ fallback เป็นกรอบสีเดิม)
             const printFrame = frameSet(st.print) ? st.print : (st.full || '');
