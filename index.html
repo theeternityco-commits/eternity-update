@@ -333,7 +333,7 @@
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-home-video', true)">home video<span>edit</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-printer-setup', true)">printer<span>setup (usb/bt/wifi)</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-qr-edit', true)">qrcode<span>edit</span></button>
-            <button class="btn-menu-new" onclick="toggleOverlay('overlay-stickers', true)">stickers<span>edit / สติ๊กเกอร์</span></button>
+            <button class="btn-menu-new" id="btn-opt-stickers" style="display:none;" onclick="toggleOverlay('overlay-stickers', true)">stickers<span>edit / สติ๊กเกอร์</span></button>
             <button class="btn-menu-new" id="btn-opt-fisheye" style="display:none;" onclick="toggleOverlay('overlay-fisheye', true)">fisheye<span>zoom / โป่ง</span></button>
             <button class="btn-menu-new" onclick="checkAppUpdate()" style="font-size:16px; padding:15px;">app update<span id="app-version-label">check now</span></button>
             <button class="btn-menu-new" onclick="showDeviceInfo()" style="font-size:16px; padding:15px;">device<span>license info</span></button>
@@ -825,6 +825,8 @@
         function applyFeatureFlags() {
             const fbtn = document.getElementById('btn-opt-fisheye');
             if (fbtn) fbtn.style.display = FISHEYE_ENABLED ? '' : 'none';
+            const sbtn = document.getElementById('btn-opt-stickers');
+            if (sbtn) sbtn.style.display = STICKERS_ENABLED ? '' : 'none';
         }
 
         // ===== Device Lock / License =====
@@ -1987,7 +1989,7 @@
         }
 
         // ===== ตกแต่งรูปด้วยสติ๊กเกอร์ (เฟส 1: วางบนหน้า review — ลาก/ย่อ-ขยาย/ลบ, รวมลงรูปตอนปริ้น) =====
-        const STICKERS_ENABLED = true;
+        const STICKERS_ENABLED = false;   // ซ่อนระบบสติ๊กเกอร์ไว้ก่อน — เปิดเมื่อพร้อม (เปลี่ยนเป็น true แล้ว push)
         const _svgSticker = s => "data:image/svg+xml," + encodeURIComponent(s);
         // สติ๊กเกอร์พื้นฐานแถมให้ (เจ้าของร้านเพิ่ม PNG เองได้ในเฟส 2)
         const DEFAULT_STICKERS = [
