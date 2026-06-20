@@ -121,8 +121,9 @@
         .frame-preview-box img { position: absolute; left: 0; width: 100%; }
         .frame-label { font-size: 20px; font-weight: bold; color: #333; }
 
-        .timer-bar-bg { width: 250px; height: 4px; background: #eee; border-radius: 2px; margin: 10px auto; overflow: hidden; }
-        .timer-bar-fill { height: 100%; background: #888; width: 100%; transition: width 1s linear; }
+        /* หลอดนับถอยหลังสไตล์พิกเซล Y2K Game Boy (ขาวดำ + ลดแบบ steppy ไม่สมูท) */
+        .timer-bar-bg { width: 250px; height: 22px; background: #fff; border: 3px solid #111; margin: 14px auto; overflow: hidden; padding: 3px; box-sizing: border-box; image-rendering: pixelated; }
+        .timer-bar-fill { height: 100%; width: 100%; background: repeating-linear-gradient(90deg, #111 0 11px, #fff 11px 14px); transition: width 1s steps(17, end); }
 
         /* --- Page 3: CAMERA --- */
         #flash-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #ffffff; opacity: 0; pointer-events: none; z-index: 9999; }
@@ -1493,7 +1494,7 @@
             let remain = sec;
             if (bar) {
                 bar.style.transition = 'none'; bar.style.width = '100%';
-                setTimeout(() => { bar.style.transition = `width ${sec}s linear`; bar.style.width = '0%'; }, 50);
+                setTimeout(() => { bar.style.transition = `width ${sec}s steps(17, end)`; bar.style.width = '0%'; }, 50);
             }
             // ครบเวลาแล้วเด้งกลับหน้า home_video (เดิมเป็น no-op — แถบวิ่งแต่ไม่ทำอะไร)
             frameTimer = setInterval(() => {
@@ -1515,7 +1516,7 @@
             if (cdEl) cdEl.innerText = remain;
             if (bar) {
                 bar.style.transition = 'none'; bar.style.width = '100%';
-                setTimeout(() => { bar.style.transition = `width ${sec}s linear`; bar.style.width = '0%'; }, 50);
+                setTimeout(() => { bar.style.transition = `width ${sec}s steps(17, end)`; bar.style.width = '0%'; }, 50);
             }
             layoutTimer = setInterval(() => {
                 remain--;
@@ -1558,7 +1559,7 @@
             let remain = sec;
             if (bar) {
                 bar.style.transition = 'none'; bar.style.width = '100%';
-                setTimeout(() => { bar.style.transition = `width ${sec}s linear`; bar.style.width = '0%'; }, 50);
+                setTimeout(() => { bar.style.transition = `width ${sec}s steps(17, end)`; bar.style.width = '0%'; }, 50);
             }
             camModeTimer = setInterval(() => {
                 remain--;
