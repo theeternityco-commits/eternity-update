@@ -217,7 +217,8 @@
         .btn-done-pill { padding: 15px 100px; border-radius: 50px; border: none; background: #000; color: white; cursor: pointer; font-size: 20px; font-weight: bold; text-transform: lowercase; }
 
         /* --- Admin Options Overlay --- */
-        .overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; box-sizing: border-box; background: #0c0c0c; z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: center; color: white; overflow-y: auto; padding: 24px 0 78px; }
+        /* safe center = อยู่กลางจอเมื่อเนื้อหาพอดี, แต่ถ้าเนื้อหายาวเกินจอจะชิดบน+เลื่อนได้ (ไม่โดนตัดหัว) */
+        .overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; box-sizing: border-box; background: #0c0c0c; z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: safe center; color: white; overflow-y: auto; padding: 24px 0 78px; }
         .overlay.active { display: flex; }
         .overlay-subtitle { font-size: 18px; color: #ffffff; letter-spacing: 4px; margin-bottom: 40px; text-transform: lowercase; }
         .overlay-menu { display: flex; flex-direction: column; gap: 10px; width: 90%; max-width: 450px; }
@@ -429,6 +430,19 @@
             <label style="color: #888;">SlipOK Branch ID</label>
             <input type="text" id="input-branch" style="padding: 15px; border-radius: 12px; border: 1px solid #333; background: #111; color: white;">
             <button class="btn-menu-new" onclick="saveKioskSettings()" style="margin-top: 20px;">save<span>settings</span></button>
+
+            <!-- โหมด QR รับรูป + ข้อความรูปหมดอายุ — เซฟทันทีที่กด (เก็บในเครื่องแบบ HTML ล้วน) -->
+            <div style="width:100%; border-top:1px solid #333; margin-top:22px; padding-top:16px; box-sizing:border-box;">
+                <label style="color:#888; display:block; margin-bottom:10px;">โหมด QR รับรูป</label>
+                <div style="display:flex; gap:10px;">
+                    <button id="qrmode-screen" onclick="chooseQrMode('screen')" style="flex:1; padding:14px 8px; border-radius:12px; border:1px solid #fff; background:transparent; color:#fff; font-size:15px; font-weight:bold; cursor:pointer; line-height:1.3;">โชว์บนจอ<br><span style="font-weight:normal; font-size:11px; color:inherit; opacity:.7;">ลูกค้าสแกนจากหน้าจอ</span></button>
+                    <button id="qrmode-print" onclick="chooseQrMode('print')" style="flex:1; padding:14px 8px; border-radius:12px; border:1px solid #fff; background:transparent; color:#fff; font-size:15px; font-weight:bold; cursor:pointer; line-height:1.3;">พิมพ์บนสลิป<br><span style="font-weight:normal; font-size:11px; color:inherit; opacity:.7;">สแกนจากกระดาษ</span></button>
+                </div>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:18px;">
+                    <label style="color:#888; flex:1;">แจ้งลูกค้า "Valid for 5 days"</label>
+                    <button id="expiry-toggle" onclick="toggleExpiryNotice()" style="min-width:90px; padding:12px 18px; border-radius:50px; border:1px solid #fff; background:transparent; color:#fff; font-size:15px; font-weight:bold; cursor:pointer;">ปิด</button>
+                </div>
+            </div>
         </div>
         <button class="btn-back-link" onclick="toggleOverlay('overlay-qr-edit', false)">back</button>
     </div>
@@ -451,7 +465,7 @@
         <button class="btn-back-link" onclick="toggleOverlay('overlay-price-edit', false)">back</button>
     </div>
 
-    <div id="overlay-print-adjust" class="overlay" style="justify-content:flex-start; padding:24px 0 90px; box-sizing:border-box;">
+    <div id="overlay-print-adjust" class="overlay" style="padding:24px 0 90px; box-sizing:border-box;">
         <div class="boot-logo-text">reciept<span>photobooth</span></div>
         <div class="overlay-subtitle">print adjust (ขาวดำ)</div>
         <div class="overlay-menu" style="gap: 10px;">
@@ -486,7 +500,7 @@
         <button class="btn-back-link" onclick="toggleOverlay('overlay-home-video', false)">back</button>
     </div>
 
-    <div id="overlay-printer-setup" class="overlay" style="justify-content:flex-start; padding:24px 0 90px; box-sizing:border-box;">
+    <div id="overlay-printer-setup" class="overlay" style="padding:24px 0 90px; box-sizing:border-box;">
         <div class="boot-logo-text">reciept<span>photobooth</span></div>
         <div class="overlay-subtitle">printer setup</div>
         <div class="overlay-menu" style="gap: 12px;">
@@ -685,6 +699,7 @@
         <h2 id="print-status">Printed!</h2>
         <div id="qrcode-container" style="display:none;">
             <div id="qrcode"></div>
+            <div id="qr-expiry-notice" style="display:none; color:#999; font-size:13px; margin:-30px 0 28px; text-align:center;">Valid for 5 days</div>
             <button id="btn-print-again" style="display:none; padding:15px 60px; border-radius:50px; border:none; background:#111; color:#fff; font-size:20px; font-weight:bold; cursor:pointer; margin-bottom:14px;" onclick="printAgain()">ถ่ายเพิ่ม</button>
             <button class="btn-done-pill" onclick="goHome()">done</button>
             <div id="print-countdown" style="margin-top:20px; color:#888; font-size:16px;"></div>
@@ -717,6 +732,9 @@
         let awaitingThermal = false;
         let thermalTimer = null;
         let pendingColorData = '';
+        let pendingPrintFrame = '';      // กรอบขาวดำที่รอ compose พร้อม QR (โหมดพิมพ์ QR ลงสลิป)
+        let pendingQrUrl = '';           // URL รูปบน Drive ของรอบนี้ (ใช้ตอนพิมพ์เสร็จในโหมดพิมพ์ลงสลิป)
+        let printFlowMode = 'screen';    // โฟลว์ที่กำลังทำงานอยู่ ('screen' = โชว์ QR บนจอ / 'print' = พิมพ์ QR ลงสลิป)
         let cameraStream = null;
         let selectedFrameIdx = 1;
         let frameTimer = null;
@@ -744,6 +762,20 @@
             fisheyeStrength = v;
             try { localStorage.setItem('fisheyeStrength', String(v)); } catch (e) {}
         }
+
+        // ===== โหมด QR รับรูป + ข้อความแจ้งรูปหมดอายุ (เก็บใน localStorage จึงอัปออนไลน์ได้ ไม่ต้องทำ APK) =====
+        // qrMode: 'screen' = โชว์ QR บนจอ (เหมือนเดิม) · 'print' = พิมพ์ QR ลงบนสลิป ลูกค้าสแกนจากกระดาษ
+        let qrMode = 'screen';
+        let expiryNoticeOn = false;
+        const EXPIRY_NOTICE_TEXT = 'Valid for 5 days';
+        function loadQrPrefs() {
+            try {
+                const m = localStorage.getItem('qrMode'); if (m === 'screen' || m === 'print') qrMode = m;
+                expiryNoticeOn = localStorage.getItem('expiryNoticeOn') === '1';
+            } catch (e) {}
+        }
+        function setQrMode(m) { qrMode = m; try { localStorage.setItem('qrMode', m); } catch (e) {} }
+        function setExpiryNoticeOn(on) { expiryNoticeOn = !!on; try { localStorage.setItem('expiryNoticeOn', on ? '1' : '0'); } catch (e) {} }
 
         // กรอบแยก 2 กลุ่มตามสัดส่วนช่องรูป: sg = Solo&Grid (4:5), st = Strip&Twin (9:16)
         // แต่ละสไตล์มี 2 รูป: full = กรอบสี (ดิจิทัล/QR), print = กรอบขาวดำ (ปริ้นกระดาษ)
@@ -821,6 +853,7 @@
         setTimeout(loadUserStickers, 0);      // โหลดสติ๊กเกอร์ที่เจ้าของร้านเพิ่มไว้ (defer กัน TDZ ของ let)
         setTimeout(loadDecorationTime, 0);    // โหลดค่าเวลาหน้าตกแต่ง
         setTimeout(loadHiddenBase, 0);        // โหลดรายการสติ๊กเกอร์พื้นฐานที่ถูกซ่อน
+        setTimeout(loadQrPrefs, 0);           // โหลดโหมด QR + สวิตช์ข้อความรูปหมดอายุ
 
         // ซ่อน/โชว์ UI ตามสวิตช์ฟีเจอร์ — เปิดฟิชอายแค่เปลี่ยน FISHEYE_ENABLED = true แล้วอัปไฟล์
         function applyFeatureFlags() {
@@ -891,7 +924,7 @@
 
         function toggleOverlay(id, active) {
             document.getElementById(id).classList.toggle('active', active);
-            if (id === 'overlay-qr-edit' && active) loadKioskSettings();
+            if (id === 'overlay-qr-edit' && active) { loadKioskSettings(); loadQrEditUI(); }
             if (id === 'overlay-frames' && active) selectEditCategory(editCategory || 'sg');
             if (id === 'overlay-price-edit' && active) loadPriceInputs();
             if (id === 'overlay-print-adjust' && active) loadBwAdjustPanel();
@@ -982,6 +1015,17 @@
             document.getElementById('input-api').value = settings.slipok_api_key;
             document.getElementById('input-branch').value = settings.slipok_branch_id;
         }
+
+        // ===== โหมด QR รับรูป + ข้อความรูปหมดอายุ (เลือกแล้วเซฟทันที — ไม่ต้องกด save) =====
+        function loadQrEditUI() {
+            const paint = (b, on) => { if (!b) return; b.style.background = on ? '#fff' : 'transparent'; b.style.color = on ? '#111' : '#fff'; };
+            paint(document.getElementById('qrmode-screen'), qrMode === 'screen');
+            paint(document.getElementById('qrmode-print'), qrMode === 'print');
+            const e = document.getElementById('expiry-toggle');
+            if (e) { e.innerText = expiryNoticeOn ? 'เปิด' : 'ปิด'; paint(e, expiryNoticeOn); }
+        }
+        function chooseQrMode(m) { setQrMode(m); loadQrEditUI(); }
+        function toggleExpiryNotice() { setExpiryNoticeOn(!expiryNoticeOn); loadQrEditUI(); }
 
         // โหลดราคา + ค่าปรับขาวดำ จาก settings ตอนเปิดแอป (เก็บใน global ไว้ใช้ตอนคิดเงิน/ปริ้น)
         function loadKioskConfig() {
@@ -1870,12 +1914,20 @@
 
         // สร้างใบเสร็จ 1 ใบ: overlaySrc = รูปกรอบที่วางทับ, grayscale = true เพื่อแปลงเป็นขาวดำ (สำหรับปริ้น)
         // คืนค่าเป็น dataURL (jpeg)
-        async function composeReceipt(overlaySrc, grayscale) {
+        async function composeReceipt(overlaySrc, grayscale, qrOpts) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
 
             // เรขาคณิตเดียวกับตอน crop กล้อง (ช่องรูปมี margin เว้นข้าง)
             const geom = getLayoutGeom(currentLayout);
+
+            // โหมดพิมพ์ QR ลงสลิป: ต่อแถบขาวล่างใบเสร็จไว้วาง QR + ข้อความ (ไม่ทับลายกรอบ)
+            // QR_SIZE 300px บนผ้ากว้าง 576px ≈ 42mm บนกระดาษ 80mm → สแกนติดง่าย
+            const qrCv = qrOpts && qrOpts.qrCanvas ? qrOpts.qrCanvas : null;
+            const qrNotice = qrOpts && qrOpts.noticeText ? qrOpts.noticeText : '';
+            const QR_SIZE = 300;
+            const QR_LABEL = 'Scan here';
+            const stripH = qrCv ? (30 + 40 + 16 + QR_SIZE + (qrNotice ? 14 + 34 : 0) + 30) : 0;
 
             const loadImage = (src) => new Promise((resolve, reject) => {
                 const img = new Image();
@@ -1889,11 +1941,11 @@
             for (let i = 0; i < photos.length; i++) imgs.push(await loadImage(photos[i]));
 
             canvas.width = geom.W;
-            canvas.height = geom.totalH;
+            canvas.height = geom.totalH + stripH;   // + แถบ QR ล่าง (0 ถ้าไม่ได้พิมพ์ QR)
 
-            // พื้นหลังขาว
+            // พื้นหลังขาว (รวมแถบ QR ล่างด้วย)
             ctx.fillStyle = '#fff';
-            ctx.fillRect(0, 0, geom.W, geom.totalH);
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             // โหลดรูปกรอบไว้ก่อน (ใช้ทั้งตอนตรวจ "เจาะรู" และตอนวาด)
             const ov = frameSet(overlaySrc) ? await loadImage(overlaySrc) : null;
@@ -1932,13 +1984,14 @@
             if (frameOnTop) { drawPhotos(); drawFrame(); }
             else { drawFrame(); drawPhotos(); }
 
-            // วาดสติ๊กเกอร์ที่ลูกค้าตกแต่งไว้ทับลงรูป (พิกัด normalized 0-1 → px ของ canvas)
+            // วาดสติ๊กเกอร์ที่ลูกค้าตกแต่งไว้ทับลงรูป (พิกัด normalized 0-1 อ้างอิง "พื้นที่ใบเสร็จ" geom.totalH
+            // ไม่ใช่ canvas.height เพราะถ้ามีแถบ QR ล่าง canvas จะสูงกว่า → สติ๊กเกอร์จะเลื่อนลงผิดตำแหน่ง)
             for (const s of placedStickers) {
                 try {
                     const sImg = await loadImage(s.src);
-                    const sw = s.nw * canvas.width;
+                    const sw = s.nw * geom.W;
                     const sh = sw * (((sImg.naturalHeight || sImg.height) / (sImg.naturalWidth || sImg.width)) || 1);
-                    ctx.drawImage(sImg, s.nx * canvas.width - sw / 2, s.ny * canvas.height - sh / 2, sw, sh);
+                    ctx.drawImage(sImg, s.nx * geom.W - sw / 2, s.ny * geom.totalH - sh / 2, sw, sh);
                 } catch (e) {}
             }
 
@@ -1953,6 +2006,24 @@
                     d[p] = d[p + 1] = d[p + 2] = g;
                 }
                 ctx.putImageData(im, 0, 0);
+            }
+
+            // วาดแถบ QR ล่าง "หลัง" แปลงขาวดำ — QR/ข้อความจึงคมชัด ไม่โดน offset/contrast กลืน
+            if (qrCv) {
+                let y = geom.totalH + 30;
+                ctx.fillStyle = '#000';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                ctx.font = 'bold 30px sans-serif';
+                ctx.fillText(QR_LABEL, geom.W / 2, y);
+                y += 40 + 16;
+                ctx.drawImage(qrCv, (geom.W - QR_SIZE) / 2, y, QR_SIZE, QR_SIZE);
+                y += QR_SIZE;
+                if (qrNotice) {
+                    y += 14;
+                    ctx.font = '22px sans-serif';   // ข้อความหมดอายุ ตัวเล็กกว่า label "Scan here"
+                    ctx.fillText(qrNotice, geom.W / 2, y);
+                }
             }
 
             return canvas.toDataURL('image/jpeg', 0.92);
@@ -2249,6 +2320,8 @@
             document.getElementById('print-status').innerText = 'กำลังเตรียมรูปของคุณ...';
             document.getElementById('qrcode-container').style.display = 'none';
             document.getElementById('qrcode').innerHTML = '';
+            const expNotice0 = document.getElementById('qr-expiry-notice');
+            if (expNotice0) expNotice0.style.display = 'none';
             document.getElementById('pay-slip-box').style.display = 'none';
             document.getElementById('print-countdown').innerText = '';
             const doneBtn = document.querySelector('.btn-done-pill');
@@ -2267,8 +2340,6 @@
 
             // รูปขาวดำ = ส่งไปปริ้นกระดาษ thermal (ถ้าไม่ได้อัพกรอบขาวดำ จะ fallback เป็นกรอบสีเดิม)
             const printFrame = frameSet(st.print) ? st.print : (st.full || '');
-            let printData;
-            try { printData = await composeReceipt(printFrame, true); } catch (e) { printData = colorData; }
 
             // ส่งไปเครื่องปริ้น thermal (จะทำงานเมื่อมีตัวเชื่อมเครื่องปริ้นในแอป)
             // โหมด kiosk: หักโควต้าตามจำนวนที่พิมพ์รอบนี้ (event ไม่คิดโควต้า)
@@ -2277,10 +2348,24 @@
             }
 
             pendingColorData = colorData;
+            printFlowMode = qrMode;
+
+            // โหมด "พิมพ์ QR ลงสลิป": ต้องได้ URL ก่อนค่อยพิมพ์ → อัป Drive ก่อน (printPhoto)
+            // เมื่อ onPrintComplete คืน URL มา ค่อย compose ใบเสร็จพร้อม QR แล้วสั่งพิมพ์ (handlePrintModeUploadDone)
+            if (qrMode === 'print') {
+                pendingPrintFrame = printFrame;
+                document.getElementById('print-status').innerText = 'กำลังเตรียมรูป...';
+                if (window.Android && window.Android.printPhoto) window.Android.printPhoto(pendingColorData, printQuantity);
+                return;
+            }
+
+            // ----- โหมด "โชว์ QR บนจอ" (โฟลว์เดิมทั้งหมด) -----
+            let printData;
+            try { printData = await composeReceipt(printFrame, true); } catch (e) { printData = colorData; }
+
             // flow "รอพิมพ์เสร็จค่อยขึ้น QR" ใช้เฉพาะ APK v1.5+ (apk 9) ที่ส่งสัญญาณ onThermalDone กลับมา
             // APK เก่า/ไม่มีเครื่องพิมพ์ → ทำแบบเดิม (ยิงพิมพ์แล้วขึ้น QR เลย) กันค้างรอสัญญาณที่ไม่มา
-            let apkSupportsWait = false;
-            try { const mm = (window.Android.getAppVersion && window.Android.getAppVersion() || '').match(/apk\s*(\d+)/); apkSupportsWait = !!mm && parseInt(mm[1], 10) >= 9; } catch (e) {}
+            const apkSupportsWait = printSupportsWait();
             if (window.Android.printThermal && apkSupportsWait) {
                 // โชว์ "กำลังพิมพ์" แล้วรอจนพิมพ์กระดาษเสร็จจริง ค่อยขึ้น QR (กันงานพิมพ์ซ้อน + กันลูกค้าสับสนตอนพิมพ์หลายใบ)
                 document.getElementById('print-status').innerText =
@@ -2302,12 +2387,112 @@
             window.Android.printPhoto(pendingColorData, printQuantity);
         }
 
-        // Kotlin เรียกเมื่อส่งข้อมูลพิมพ์ครบทุกใบแล้ว (≈ พิมพ์กระดาษเสร็จ) → ค่อยขึ้น QR
+        // APK v1.5+ (apk 9) เท่านั้นที่ส่งสัญญาณ onThermalDone กลับมา → ใช้รอพิมพ์เสร็จได้
+        function printSupportsWait() {
+            try { const mm = (window.Android.getAppVersion && window.Android.getAppVersion() || '').match(/apk\s*(\d+)/); return !!mm && parseInt(mm[1], 10) >= 9; }
+            catch (e) { return false; }
+        }
+
+        // สร้าง QR เป็น <canvas> ในเครื่องด้วย qrcodejs ที่โหลดไว้แล้ว — ไม่ดึงรูปจากเน็ต จึงไม่ทำให้ canvas
+        // taint ตอน toDataURL (ต่างจาก QR บนจอที่ใช้ api.qrserver.com). รองรับทั้งโหมด canvas และ img ของ lib
+        function makeQrCanvas(text, size) {
+            return new Promise((resolve, reject) => {
+                try {
+                    if (typeof QRCode === 'undefined') { reject(new Error('QRCode lib not loaded')); return; }
+                    const holder = document.createElement('div');
+                    holder.style.position = 'fixed'; holder.style.left = '-9999px'; holder.style.top = '0';
+                    document.body.appendChild(holder);
+                    new QRCode(holder, { text: text, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
+                    const done = (cv) => { try { document.body.removeChild(holder); } catch (e) {} resolve(cv); };
+                    const fail = (e) => { try { document.body.removeChild(holder); } catch (er) {} reject(e); };
+                    let tries = 0;
+                    const grab = () => {
+                        const cv = holder.querySelector('canvas');
+                        if (cv) { done(cv); return; }
+                        const im = holder.querySelector('img');
+                        if (im && im.src) {
+                            const tmp = new Image();
+                            tmp.onload = () => { const c = document.createElement('canvas'); c.width = size; c.height = size; c.getContext('2d').drawImage(tmp, 0, 0, size, size); done(c); };
+                            tmp.onerror = () => fail(new Error('qr img load failed'));
+                            tmp.src = im.src;   // data: URL ที่สร้างในเครื่อง → ปลอดภัย ไม่ taint
+                            return;
+                        }
+                        if (++tries > 40) { fail(new Error('qr render timeout')); return; }
+                        setTimeout(grab, 25);
+                    };
+                    setTimeout(grab, 0);
+                } catch (e) { reject(e); }
+            });
+        }
+
+        // โหมดพิมพ์ QR ลงสลิป: ได้ URL จากการอัป Drive แล้ว → สร้าง QR, compose ใบเสร็จพร้อม QR, แล้วสั่งพิมพ์
+        async function handlePrintModeUploadDone(url) {
+            pendingQrUrl = url;
+            let qrCanvas = null;
+            try { qrCanvas = await makeQrCanvas(url, 300); } catch (e) { console.error('makeQrCanvas', e); }
+            const opts = qrCanvas ? { qrCanvas: qrCanvas, noticeText: expiryNoticeOn ? EXPIRY_NOTICE_TEXT : '' } : null;
+            let printData;
+            try { printData = await composeReceipt(pendingPrintFrame, true, opts); }
+            catch (e) { try { printData = await composeReceipt(pendingPrintFrame, true); } catch (e2) { printData = pendingColorData; } }
+
+            if (window.Android.printThermal && printSupportsWait()) {
+                document.getElementById('print-status').innerText =
+                    (printQuantity > 1) ? `กำลังพิมพ์ ${printQuantity} รูป กรุณารอสักครู่...` : 'กำลังพิมพ์... กรุณารอสักครู่';
+                awaitingThermal = true;
+                clearTimeout(thermalTimer);
+                thermalTimer = setTimeout(() => { if (awaitingThermal) { awaitingThermal = false; showPrintDone(url); } }, 180000);
+                try { window.Android.printThermal(printData, printQuantity); }
+                catch (e) { console.error('printThermal error', e); awaitingThermal = false; clearTimeout(thermalTimer); showPrintDone(url); }
+            } else {
+                if (window.Android.printThermal) { try { window.Android.printThermal(printData, printQuantity); } catch (e) { console.error('printThermal error', e); } }
+                showPrintDone(url);
+            }
+        }
+
+        // จบงานโหมดพิมพ์ QR ลงสลิป — มีเครื่องพิมพ์: QR อยู่บนกระดาษแล้ว ไม่ต้องโชว์บนจอ
+        // ไม่มีเครื่องพิมพ์ (fallback): โชว์ QR บนจอแทน เพื่อให้ลูกค้ายังรับรูปได้
+        function showPrintDone(url) {
+            document.getElementById('print-loader').style.display = 'none';
+            const hasPrinter = !!(window.Android && window.Android.printThermal);
+            const qrEl = document.getElementById('qrcode');
+            const notice = document.getElementById('qr-expiry-notice');
+            if (hasPrinter) {
+                document.getElementById('print-status').innerText = 'รับรูปได้จาก QR บนสลิป';
+                qrEl.innerHTML = '';
+            } else {
+                document.getElementById('print-status').innerText = 'Scan here';
+                qrEl.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(url)}" style="border-radius:10px;">`;
+            }
+            if (notice) notice.style.display = expiryNoticeOn ? 'block' : 'none';
+            document.getElementById('pay-slip-box').style.display = 'none';
+            document.getElementById('qrcode-container').style.display = 'flex';
+            finalizePrintPage();
+        }
+
+        // ปุ่ม done + ปุ่มถ่ายเพิ่ม + นับถอยหลังกลับหน้าหลัก (ใช้ร่วมทั้ง 2 โหมด)
+        function finalizePrintPage() {
+            const doneBtn = document.querySelector('.btn-done-pill');
+            doneBtn.removeAttribute('style');
+            doneBtn.innerText = 'done';
+            doneBtn.onclick = goHome;
+            const againBtn = document.getElementById('btn-print-again');
+            if (againBtn && systemMode !== 'event' && remainingQuota > 0) {
+                againBtn.style.display = 'block';
+                againBtn.innerText = `ถ่ายเพิ่ม (เหลือ ${remainingQuota} รูป)`;
+                startPrintAutoHome(30);   // ให้เวลามากหน่อย เผื่อลูกค้าจะถ่ายเพิ่ม
+            } else {
+                if (againBtn) againBtn.style.display = 'none';
+                startPrintAutoHome(15);
+            }
+        }
+
+        // Kotlin เรียกเมื่อส่งข้อมูลพิมพ์ครบทุกใบแล้ว (≈ พิมพ์กระดาษเสร็จ) → ค่อยขึ้น QR / จบงาน
         window.onThermalDone = function() {
             if (!awaitingThermal) return;   // ไม่ได้รออยู่ (เช่นใบทดสอบ) → ไม่ทำอะไร
             awaitingThermal = false;
             clearTimeout(thermalTimer);
-            finishToQR();
+            if (printFlowMode === 'print') showPrintDone(pendingQrUrl);   // โหมดพิมพ์ลงสลิป: อัป+พิมพ์เสร็จแล้ว
+            else finishToQR();                                            // โหมดโชว์บนจอ: เดิม
         };
 
         // ตัวจับเวลานับถอยหลังกลับหน้าหลักอัตโนมัติ (หน้าสแกนรับรูป)
@@ -2343,30 +2528,21 @@
 
         window.onPrintComplete = function(data) {
             if (typeof data === 'string') data = JSON.parse(data);
-            if (data.status === "OK") {
-                // ซ่อน loading แสดง QR รับรูป
-                document.getElementById('print-loader').style.display = 'none';
-                document.getElementById('print-status').innerText = 'สแกนเพื่อรับรูป';
-                document.getElementById('pay-slip-box').style.display = 'none';
-                document.getElementById('qrcode-container').style.display = 'flex';
-                document.getElementById('qrcode').innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(data.url)}" style="border-radius:10px;">`;
+            if (data.status !== "OK") return;
 
-                const doneBtn = document.querySelector('.btn-done-pill');
-                doneBtn.removeAttribute('style');
-                doneBtn.innerText = 'done';
-                doneBtn.onclick = goHome;
+            // โหมดพิมพ์ QR ลงสลิป: เพิ่งอัป Drive เสร็จ → ไปสร้าง QR + compose + พิมพ์ (ไม่โชว์ QR บนจอ)
+            if (printFlowMode === 'print') { handlePrintModeUploadDone(data.url); return; }
 
-                // โหมด kiosk: ถ้ายังเหลือโควต้า เปิดปุ่ม "ถ่ายเพิ่ม" ให้ใช้สิทธิ์ที่เหลือ
-                const againBtn = document.getElementById('btn-print-again');
-                if (againBtn && systemMode !== 'event' && remainingQuota > 0) {
-                    againBtn.style.display = 'block';
-                    againBtn.innerText = `ถ่ายเพิ่ม (เหลือ ${remainingQuota} รูป)`;
-                    startPrintAutoHome(30);   // ให้เวลามากหน่อย เผื่อลูกค้าจะถ่ายเพิ่ม
-                } else {
-                    if (againBtn) againBtn.style.display = 'none';
-                    startPrintAutoHome(15);
-                }
-            }
+            // ----- โหมดโชว์ QR บนจอ (เดิม) -----
+            document.getElementById('print-loader').style.display = 'none';
+            document.getElementById('print-status').innerText = 'Scan here';
+            document.getElementById('pay-slip-box').style.display = 'none';
+            document.getElementById('qrcode-container').style.display = 'flex';
+            document.getElementById('qrcode').innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(data.url)}" style="border-radius:10px;">`;
+            const notice = document.getElementById('qr-expiry-notice');
+            if (notice) notice.style.display = expiryNoticeOn ? 'block' : 'none';
+
+            finalizePrintPage();
         };
     </script>
 </body>
