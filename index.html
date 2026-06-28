@@ -360,6 +360,7 @@
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-home-video', true)">home video<span>edit</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-printer-setup', true)">printer<span>setup (usb/bt/wifi)</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-qr-edit', true)">qrcode<span>edit</span></button>
+            <button class="btn-menu-new" onclick="toggleOverlay('overlay-capture-time', true)">capture<span>time / เวลาถ่าย</span></button>
             <button class="btn-menu-new" id="btn-opt-stickers" style="display:none;" onclick="toggleOverlay('overlay-stickers', true)">stickers<span>edit / สติ๊กเกอร์</span></button>
             <button class="btn-menu-new" id="btn-opt-fisheye" style="display:none;" onclick="toggleOverlay('overlay-fisheye', true)">fisheye<span>zoom / โป่ง</span></button>
             <button class="btn-menu-new" onclick="checkAppUpdate()" style="font-size:16px; padding:15px;">app update<span id="app-version-label">check now</span></button>
@@ -411,6 +412,24 @@
             <div style="color:#1dd1a1; font-weight:bold; text-align:center; font-size:18px;">ความโป่ง: <span id="fisheye-val">0.50</span></div>
         </div>
         <button class="btn-back-link" onclick="toggleOverlay('overlay-fisheye', false)">back</button>
+    </div>
+
+    <!-- เวลานับถอยหลังก่อนถ่าย (เจ้าของร้านปรับเอง 1–10 วิ) — HTML ล้วน เก็บใน localStorage -->
+    <div id="overlay-capture-time" class="overlay">
+        <div class="boot-logo-text">reciept<span>photobooth</span></div>
+        <div class="overlay-subtitle">capture time</div>
+        <div class="overlay-menu" style="gap: 16px;">
+            <p style="color:#888; font-size:13px; margin:0; text-align:center; max-width:520px;">
+                เวลานับถอยหลังก่อนถ่ายแต่ละรูป (วินาที) — เลื่อนแล้วค่าจะเซฟอัตโนมัติ
+            </p>
+            <div style="display:flex; align-items:center; gap:12px; width:90%; max-width:450px; align-self:center;">
+                <span style="color:#888; font-size:13px;">1 วิ</span>
+                <input type="range" id="capture-time-range" min="1" max="10" step="1" value="3" style="flex:1;" oninput="onCaptureTimeRange(this.value)">
+                <span style="color:#888; font-size:13px;">10 วิ</span>
+            </div>
+            <div style="color:#1dd1a1; font-weight:bold; text-align:center; font-size:18px;">เวลาถ่าย: <span id="capture-time-val">3</span> วินาที</div>
+        </div>
+        <button class="btn-back-link" onclick="toggleOverlay('overlay-capture-time', false)">back</button>
     </div>
 
     <div id="overlay-frames" class="overlay">
@@ -837,6 +856,13 @@
             try { localStorage.setItem('fisheyeStrength', String(v)); } catch (e) {}
         }
 
+        // เวลานับถอยหลังก่อนถ่ายแต่ละรูป (วินาที) — ปรับได้ 1–10 (ดีฟอลต์ 3), เก็บใน localStorage จึงอัปออนไลน์ได้
+        let captureSeconds = 3;
+        function loadCaptureTime() { try { const v = parseInt(localStorage.getItem('captureSeconds'), 10); if (!isNaN(v)) captureSeconds = Math.min(10, Math.max(1, v)); } catch (e) {} }
+        function setCaptureTime(v) { let n = parseInt(v, 10); if (isNaN(n)) n = 3; captureSeconds = Math.min(10, Math.max(1, n)); try { localStorage.setItem('captureSeconds', String(captureSeconds)); } catch (e) {} }
+        function loadCaptureTimePanel() { const r = document.getElementById('capture-time-range'); const el = document.getElementById('capture-time-val'); if (r) r.value = captureSeconds; if (el) el.textContent = captureSeconds; }
+        function onCaptureTimeRange(v) { setCaptureTime(v); const el = document.getElementById('capture-time-val'); if (el) el.textContent = captureSeconds; }
+
         // ===== โหมด QR รับรูป + ข้อความแจ้งรูปหมดอายุ (เก็บใน localStorage จึงอัปออนไลน์ได้ ไม่ต้องทำ APK) =====
         // qrMode: 'screen' = โชว์ QR บนจอ (เหมือนเดิม) · 'print' = พิมพ์ QR ลงบนสลิป ลูกค้าสแกนจากกระดาษ
         let qrMode = 'screen';
@@ -929,6 +955,7 @@
         setTimeout(applyFeatureFlags, 500);   // ซ่อน/โชว์ UI ตามสวิตช์ฟีเจอร์ (เช่น FISHEYE_ENABLED)
         setTimeout(loadUserStickers, 0);      // โหลดสติ๊กเกอร์ที่เจ้าของร้านเพิ่มไว้ (defer กัน TDZ ของ let)
         setTimeout(loadDecorationTime, 0);    // โหลดค่าเวลาหน้าตกแต่ง
+        setTimeout(loadCaptureTime, 0);       // โหลดเวลานับถอยหลังก่อนถ่าย
         setTimeout(loadHiddenBase, 0);        // โหลดรายการสติ๊กเกอร์พื้นฐานที่ถูกซ่อน
         setTimeout(loadQrPrefs, 0);           // โหลดโหมด QR + สวิตช์ข้อความรูปหมดอายุ
 
@@ -1014,6 +1041,7 @@
             if (id === 'overlay-printer-setup' && active) loadPrinterSetup();
             if (id === 'overlay-home-video' && active) refreshHomeVideoStatus();
             if (id === 'overlay-fisheye' && active) loadFisheyePanel();
+            if (id === 'overlay-capture-time' && active) loadCaptureTimePanel();
             if (id === 'overlay-stickers' && active) openStickerManager();
             if (id === 'overlay-main' && active) refreshVersionLabel();
         }
@@ -1908,7 +1936,7 @@
         function takeNext(idx) {
             if (idx >= totalPhotos) { generatePreview(); return; }
             document.getElementById('status-text').innerText = `Photo ${idx+1}/${totalPhotos}`;
-            let count = 3;
+            let count = captureSeconds;   // เวลานับถอยหลัง (ตั้งได้ 1–10 วิ ในเมนู capture time)
             const cd = document.getElementById('countdown');
             cd.style.display = 'block'; cd.innerText = count;
             let t = setInterval(() => {
