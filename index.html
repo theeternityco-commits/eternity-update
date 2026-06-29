@@ -1062,9 +1062,21 @@
         }
 
         // ===== Home video (เปลี่ยน/รีเซ็ตวิดีโอหน้าหลัก) =====
+        let homeVideoPending = false, homeVideoLoadingTimer = null;
         function pickHomeVideo() {
-            if (window.Android && window.Android.pickHomeVideo) window.Android.pickHomeVideo();
+            if (window.Android && window.Android.pickHomeVideo) { homeVideoPending = true; window.Android.pickHomeVideo(); }
         }
+        // กลับจากตัวเลือกไฟล์ (= เลือกวิดีโอเสร็จ กำลังเปลี่ยน) → โชว์ loading เอง ไม่พึ่งสัญญาณจากแอป
+        // (จึงใช้ได้ทุกเวอร์ชัน + อัปออนไลน์ได้) ; ถ้ายกเลิก/ไม่มีสัญญาณกลับ มีปุ่มปิด + ตั้งเวลาเซฟปิดเอง
+        function homeVideoReturned() {
+            if (!homeVideoPending) return;
+            homeVideoPending = false;
+            showHomeVideoLoading();
+            clearTimeout(homeVideoLoadingTimer);
+            homeVideoLoadingTimer = setTimeout(hideHomeVideoLoading, 180000);
+        }
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') homeVideoReturned(); });
+        window.addEventListener('focus', homeVideoReturned);
         function resetHomeVideo() {
             if (!confirm('กลับไปใช้วิดีโอเดิมที่ติดมากับเครื่อง?')) return;
             if (window.Android && window.Android.resetHomeVideo) window.Android.resetHomeVideo();
@@ -1096,10 +1108,26 @@
         }
         // เรียกจากฝั่งแอปหลังเปลี่ยน/รีเซ็ตวิดีโอเสร็จ → โหลด+เล่นวิดีโอใหม่ + อัปเดตสถานะ/เครดิต
         window.onHomeVideoChanged = function () {
+            hideHomeVideoLoading();
             refreshHomeVideoStatus();
             refreshHomeCredit();
             initHomeVideo();
         };
+        // โชว์/ซ่อน loading ตอนแปลงวิดีโอ (ฝั่งแอปเรียกมา) — ลูกค้าจะได้รู้ว่ากำลังทำงาน ไม่ใช่ค้าง
+        function showHomeVideoLoading() {
+            let el = document.getElementById('home-video-loading');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'home-video-loading';
+                el.style.cssText = 'position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.82); display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; gap:20px;';
+                el.innerHTML = '<div class="spinner" style="width:64px;height:64px;border-width:6px;"></div><div style="font-size:18px; font-weight:bold;">กำลังเปลี่ยนวิดีโอ...</div><div style="font-size:14px; color:#bbb;">กรุณารอสักครู่ อย่าปิดแอป</div><button onclick="hideHomeVideoLoading()" style="margin-top:6px; padding:10px 30px; border-radius:50px; border:1px solid #888; background:transparent; color:#ccc; font-size:14px; cursor:pointer;">ปิด</button>';
+                document.body.appendChild(el);
+            }
+            el.style.display = 'flex';
+        }
+        function hideHomeVideoLoading() { const el = document.getElementById('home-video-loading'); if (el) el.style.display = 'none'; clearTimeout(homeVideoLoadingTimer); homeVideoPending = false; }
+        window.onHomeVideoBusy = showHomeVideoLoading;
+        window.onHomeVideoFailed = function (msg) { hideHomeVideoLoading(); alert(msg || 'เปลี่ยนวิดีโอไม่สำเร็จ'); };
 
         // ===== App update (อัปเดตระยะไกล) =====
         function checkAppUpdate() {
