@@ -113,9 +113,10 @@
 
         /* --- Page: Choose Your Style --- */
         #page-frame { background: #fff; text-align: center; }
-        .frame-grid { display: flex; gap: 20px; justify-content: center; width: 95%; max-width: 900px; margin-top: 20px; }
+        /* แถวเลือกกรอบ: กรอบน้อยอยู่กลาง, กรอบเยอะเลื่อนซ้าย-ขวาได้ (เลือกได้ไม่อั้น) */
+        .frame-grid { display: flex; gap: 20px; justify-content: center; width: 95%; max-width: 900px; margin-top: 20px; overflow-x: auto; padding: 6px 4px 14px; }
         .frame-opt-card {
-            flex: 1; background: #fff; border: 1px solid #eee; border-radius: 20px;
+            flex: 0 0 auto; width: clamp(150px, 26vw, 210px); background: #fff; border: 1px solid #eee; border-radius: 20px;
             padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.05);
             cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center;
         }
@@ -223,7 +224,7 @@
 
         /* --- Admin Options Overlay --- */
         /* safe center = อยู่กลางจอเมื่อเนื้อหาพอดี, แต่ถ้าเนื้อหายาวเกินจอจะชิดบน+เลื่อนได้ (ไม่โดนตัดหัว) */
-        .overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; box-sizing: border-box; background: #0c0c0c; z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: safe center; color: white; overflow-y: auto; padding: 24px 0 78px; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; box-sizing: border-box; background: #0c0c0c; z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: safe center; color: white; overflow-y: auto; padding: 24px 0 36px; }
         .overlay.active { display: flex; }
         .overlay-subtitle { font-size: 18px; color: #ffffff; letter-spacing: 4px; margin-bottom: 40px; text-transform: lowercase; }
         .overlay-menu { display: flex; flex-direction: column; gap: 10px; width: 90%; max-width: 450px; }
@@ -249,6 +250,8 @@
         .bt-device-item.active { border-color: #fff; color: #fff; }
         .bt-device-item small { display:block; color:#666; font-size:11px; }
         .btn-back-link { position: absolute; bottom: 30px; color: #ffffff; font-size: 18px; letter-spacing: 4px; cursor: pointer; text-transform: lowercase; background: none; border: none; }
+        /* ใน overlay (เนื้อหายาวเลื่อนได้) ปุ่ม back ต้องไหลต่อท้ายเนื้อหา ไม่ลอยทับ (เดิม absolute แล้วจมกลางจอเวลาเมนูยาว) */
+        .overlay .btn-back-link { position: static; margin-top: 20px; flex: 0 0 auto; }
 
         /* เมนู Frame Edit 3 ช่อง (ช่องละสไตล์ — กรอบ 1 ภาพคลุมทั้งใบ) */
         .frame-grid-edit {
@@ -437,9 +440,10 @@
         <div class="overlay-subtitle">frame edit</div>
         <div class="overlay-menu">
             <p style="color:#888; font-size:13px; margin:0 0 4px; text-align:center; max-width:520px;">
-                เลือก "กลุ่มเลย์เอาต์" ก่อน แล้วอัปกรอบ 3 สไตล์ (<b style="color:#1dd1a1;">สี</b> = ดิจิทัล/QR,
+                เลือก "กลุ่มเลย์เอาต์" ก่อน แล้วอัปกรอบได้ไม่จำกัด กด <b style="color:#2e7d32;">＋เพิ่มกรอบ</b> เพื่อเพิ่ม (<b style="color:#1dd1a1;">สี</b> = ดิจิทัล/QR,
                 <b style="color:#fff;">ขาวดำ</b> = ปริ้นกระดาษ ถ้าไม่อัปจะใช้สีปริ้นแทน)
             </p>
+            <button class="btn-cat" id="btn-frame-choice" onclick="toggleFrameChoiceUI()" style="width:95%; max-width:500px; margin:0 0 10px;">โชว์หน้าเลือกกรอบให้ลูกค้า<span id="frame-choice-state">เปิด</span></button>
             <div style="display:flex; gap:12px; width:95%; max-width:500px;">
                 <button class="btn-cat" id="cat-sg" onclick="selectEditCategory('sg')">Solo &amp; Grid<span>4:5</span></button>
                 <button class="btn-cat" id="cat-st" onclick="selectEditCategory('st')">Strip &amp; Twin<span>9:16</span></button>
@@ -654,17 +658,7 @@
     <!-- FRAME SELECTION -->
     <div id="page-frame" class="page">
         <h2 style="font-size: 32px; margin-top: 50px;">Choose Your Style</h2>
-        <div class="frame-grid">
-            <div class="frame-opt-card" onclick="confirmFrameSelection(1)">
-                <div class="frame-preview-box" id="prev-box-1"></div><div class="frame-label">Style 1</div>
-            </div>
-            <div class="frame-opt-card" onclick="confirmFrameSelection(2)">
-                <div class="frame-preview-box" id="prev-box-2"></div><div class="frame-label">Style 2</div>
-            </div>
-            <div class="frame-opt-card" onclick="confirmFrameSelection(3)">
-                <div class="frame-preview-box" id="prev-box-3"></div><div class="frame-label">Style 3</div>
-            </div>
-        </div>
+        <div class="frame-grid" id="frame-cards"><!-- การ์ดกรอบถูกสร้างแบบไดนามิก (ไม่จำกัดจำนวน) โดย updateStylePreviews() --></div>
         <div class="timer-bar-bg"><div id="frame-timer-bar" class="timer-bar-fill"></div></div>
         <button class="btn-back-link" onclick="showPage('page-layout')" style="color:#888;">back</button>
     </div>
@@ -886,6 +880,32 @@
             sg: { 1: { full: '', print: '' }, 2: { full: '', print: '' }, 3: { full: '', print: '' } },
             st: { 1: { full: '', print: '' }, 2: { full: '', print: '' }, 3: { full: '', print: '' } }
         };
+        // จำนวนกรอบแต่ละกลุ่ม (เพิ่มได้ไม่จำกัด ~สูงสุด 30) + สวิตช์โชว์หน้าเลือกกรอบให้ลูกค้า — เก็บ localStorage (อัปออนไลน์ได้)
+        let frameCounts = { sg: 3, st: 3 };
+        let showFrameChoice = true;
+        function loadFrameCounts() {
+            try {
+                const cs = parseInt(localStorage.getItem('frameCount_sg'), 10); if (cs >= 1) frameCounts.sg = Math.min(30, cs);
+                const ct = parseInt(localStorage.getItem('frameCount_st'), 10); if (ct >= 1) frameCounts.st = Math.min(30, ct);
+                showFrameChoice = localStorage.getItem('showFrameChoice') !== '0';
+            } catch (e) {}
+            ['sg', 'st'].forEach(cat => { for (let i = 1; i <= frameCounts[cat]; i++) if (!frames[cat][i]) frames[cat][i] = { full: '', print: '' }; });
+        }
+        function saveFrameCounts() { try { localStorage.setItem('frameCount_sg', String(frameCounts.sg)); localStorage.setItem('frameCount_st', String(frameCounts.st)); } catch (e) {} }
+        function setShowFrameChoice(on) { showFrameChoice = !!on; try { localStorage.setItem('showFrameChoice', on ? '1' : '0'); } catch (e) {} }
+        function addFrameStyle(cat) {
+            if (frameCounts[cat] >= 30) { alert('เพิ่มได้สูงสุด 30 กรอบต่อกลุ่มแล้วนะคะ'); return; }
+            frameCounts[cat]++; const i = frameCounts[cat]; frames[cat][i] = { full: '', print: '' };
+            saveFrameCounts(); renderFrameEditButtons();
+        }
+        function removeLastFrameStyle(cat) {
+            if (frameCounts[cat] <= 1) { alert('ต้องมีอย่างน้อย 1 กรอบ'); return; }
+            const i = frameCounts[cat];
+            if (!confirm(`ลบกรอบล่าสุด (#${i}) ของกลุ่มนี้?`)) return;
+            window.Android.saveFramePart(i, cat + '_full', ''); window.Android.saveFramePart(i, cat + '_print', '');
+            delete frames[cat][i]; frameCounts[cat]--;
+            saveFrameCounts(); renderFrameEditButtons();
+        }
         let displayReceiptDataURL = ''; // รูปใบเสร็จสี (ใช้โชว์ + อัป Drive ทำ QR)
         let editCategory = null;        // กลุ่มที่กำลังแก้ในหน้า frame edit ('sg' | 'st')
 
@@ -939,9 +959,11 @@
         function frameSet(s) { return !!s && s.indexOf('data:') === 0 && s.length > 100; }
 
         function loadSavedFrames() {
+            loadFrameCounts();
             if (!window.Android || !window.Android.getFramePart) return;
             ['sg', 'st'].forEach(cat => {
-                for (let i = 1; i <= 3; i++) {
+                for (let i = 1; i <= frameCounts[cat]; i++) {
+                    if (!frames[cat][i]) frames[cat][i] = { full: '', print: '' };
                     frames[cat][i].full = window.Android.getFramePart(i, cat + '_full');
                     frames[cat][i].print = window.Android.getFramePart(i, cat + '_print');
                 }
@@ -949,6 +971,7 @@
             renderFrameEditButtons();
         }
 
+        setTimeout(loadFrameCounts, 0);
         setTimeout(loadSavedFrames, 500);
         setTimeout(loadKioskConfig, 500);   // โหลดราคา + ค่าปรับขาวดำ ที่เจ้าของร้านตั้งไว้
         setTimeout(loadFisheyeStrength, 500);
@@ -1016,9 +1039,24 @@
 
         setTimeout(initActivation, 100); // เช็คสิทธิ์เครื่องทันทีหลังโหลด
 
+        // ประหยัดแรม/CPU: เล่นวิดีโอหน้าหลักเฉพาะตอนอยู่หน้า home เท่านั้น — ออกจากหน้าเมื่อไหร่หยุดถอดรหัสทันที
+        function syncHomeVideoPlayback(activeId) {
+            const v = document.getElementById('home-video');
+            if (!v) return;
+            try { if (activeId === 'page-home') v.play().catch(() => {}); else v.pause(); } catch (e) {}
+        }
+        // แอปถูกพับ/จอดับ → หยุดวิดีโอด้วย, กลับมาแล้วถ้าอยู่หน้า home ค่อยเล่นต่อ
+        document.addEventListener('visibilitychange', () => {
+            const v = document.getElementById('home-video');
+            if (!v) return;
+            if (document.visibilityState !== 'visible') { try { v.pause(); } catch (e) {} }
+            else { const home = document.getElementById('page-home'); if (home && home.classList.contains('active')) { try { v.play().catch(() => {}); } catch (e) {} } }
+        });
+
         function showPage(id) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(id).classList.add('active');
+            syncHomeVideoPlayback(id);
             // หน้าเลือก layout: เริ่มนับถอยหลัง auto-cancel ทุกครั้งที่เข้า, ออกจากหน้าเมื่อไหร่หยุดทันที
             if (id === 'page-layout') startLayoutTimer(15);
             else stopLayoutTimer();
@@ -1585,6 +1623,19 @@
             document.getElementById('cat-st').classList.toggle('active-cat', cat === 'st');
             renderFrameEditButtons();
             updatePhotoLayerButtons();
+            updateFrameChoiceBtn();
+        }
+
+        // สวิตช์: โชว์หน้าเลือกกรอบให้ลูกค้าไหม (ปิด = ข้ามไปใช้กรอบแรกเลย)
+        function updateFrameChoiceBtn() {
+            const st = document.getElementById('frame-choice-state');
+            const btn = document.getElementById('btn-frame-choice');
+            if (st) st.textContent = showFrameChoice ? 'เปิด' : 'ปิด';
+            if (btn) btn.classList.toggle('active-cat', showFrameChoice);
+        }
+        function toggleFrameChoiceUI() {
+            setShowFrameChoice(!showFrameChoice);
+            updateFrameChoiceBtn();
         }
 
         // ===== ชั้นรูป (photo layer) — เก็บใน localStorage จึงอัปแบบ HTML ล้วนได้ ไม่ต้อง build APK =====
@@ -1612,15 +1663,21 @@
             if (!editCategory) { wrap.innerHTML = ''; return; }
             const cat = editCategory;
             let html = '';
-            for (let i = 1; i <= 3; i++) {
+            for (let i = 1; i <= frameCounts[cat]; i++) {
+                if (!frames[cat][i]) frames[cat][i] = { full: '', print: '' };
                 const hasC = frameSet(frames[cat][i].full);
                 const hasB = frameSet(frames[cat][i].print);
                 html += `<div class="frame-edit-col">
-                    <div class="frame-edit-title">STYLE ${i}</div>
+                    <div class="frame-edit-title">#${i}</div>
                     <button class="btn-frame-part" style="background-image:${hasC ? `url(${frames[cat][i].full})` : 'none'}" onclick="pickFrame('${cat}',${i},'full')">สี<span>digital ${hasC ? '✓' : ''}</span></button>
                     <button class="btn-frame-part bw" style="background-image:${hasB ? `url(${frames[cat][i].print})` : 'none'}" onclick="pickFrame('${cat}',${i},'print')">ขาวดำ<span>print ${hasB ? '✓' : ''}</span></button>
                 </div>`;
             }
+            // ปุ่มเพิ่ม/ลบกรอบ (ไม่จำกัดจำนวน) — ดำขอบขาว เข้าชุดปุ่มอื่นในหน้านี้
+            html += `<div class="frame-edit-col" style="justify-content:center; gap:10px;">
+                <button class="btn-frame-part" style="border:1.5px solid #fff; font-size:26px;" onclick="addFrameStyle('${cat}')">＋<span>เพิ่มกรอบ</span></button>
+                <button class="btn-frame-part" style="border:1.5px solid #fff; font-size:15px;" onclick="removeLastFrameStyle('${cat}')">ลบกรอบล่าสุด<span>#${frameCounts[cat]}</span></button>
+            </div>`;
             wrap.innerHTML = html;
         }
 
@@ -1630,22 +1687,25 @@
                 window.Android.saveFramePart(idx, cat + '_' + part, base64);
                 frames[cat][idx][part] = base64;
                 renderFrameEditButtons();
-                alert(`บันทึกกรอบ${part === 'full' ? 'สี (ดิจิทัล)' : 'ขาวดำ (ปริ้น)'} ${cat === 'sg' ? 'Solo&Grid' : 'Strip&Twin'} Style ${idx} สำเร็จ!`);
+                alert(`บันทึกกรอบ${part === 'full' ? 'สี (ดิจิทัล)' : 'ขาวดำ (ปริ้น)'} ${cat === 'sg' ? 'Solo&Grid' : 'Strip&Twin'} #${idx} สำเร็จ!`);
             });
         }
 
         function resetAllFrames() {
             if (confirm("ล้างกรอบที่อัพโหลดทั้งหมด แล้วกลับไปใช้เฟรมพื้นฐานที่ติดมากับแอป?")) {
                 ['sg', 'st'].forEach(cat => {
-                    for (let i = 1; i <= 3; i++) {
+                    const upTo = Math.max(3, frameCounts[cat] || 3);
+                    for (let i = 1; i <= upTo; i++) {
                         window.Android.saveFramePart(i, cat + '_full', '');
                         window.Android.saveFramePart(i, cat + '_print', '');
+                        if (i > 3) delete frames[cat][i];
                     }
                 });
                 // ล้างไฟล์ระบบเก่า (full/print/top/bottom) ทิ้งด้วย เผื่อเคยอัพไว้
                 for (let i = 1; i <= 3; i++) {
                     ['full', 'print', 'top', 'bottom'].forEach(p => window.Android.saveFramePart(i, p, ''));
                 }
+                frameCounts = { sg: 3, st: 3 }; saveFrameCounts();   // กลับไปจำนวนพื้นฐาน 3 กรอบ
                 // โหลดใหม่ → getFramePart จะ fallback ไปดึงเฟรมพื้นฐานจาก assets กลับมาทันที
                 loadSavedFrames();
                 alert("กลับไปใช้เฟรมพื้นฐานแล้ว");
@@ -1667,25 +1727,30 @@
         function selectLayout(type) {
             currentLayout = type;
             totalPhotos = (type === 'solo') ? 1 : (type === 'strip' ? 3 : (type === 'grid' ? 4 : 6));
+            // สวิตช์ปิดหน้าเลือกกรอบ → ใช้กรอบแรกเลย ไม่ต้องให้ลูกค้าเลือก
+            if (!showFrameChoice) { confirmFrameSelection(1); return; }
             updateStylePreviews();   // โชว์กรอบของกลุ่มที่ตรงกับเลย์เอาต์ที่เลือก
             showPage('page-frame');
             startFrameTimer(15);
         }
 
-        // พรีวิวในหน้า "Choose Your Style" — โชว์กรอบสี 3 สไตล์ของกลุ่มปัจจุบัน (ตามเลย์เอาต์ที่เลือก)
+        // พรีวิวในหน้า "Choose Your Style" — สร้างการ์ดกรอบไดนามิก (ไม่จำกัดจำนวน, ไม่มีป้าย Style) ของกลุ่มปัจจุบัน
         function updateStylePreviews() {
             const cat = currentCategory();
             const ratio = (cat === 'sg') ? '4 / 5' : '9 / 16';
-            for (let i = 1; i <= 3; i++) {
-                const box = document.getElementById(`prev-box-${i}`);
-                if (!box) continue;
-                box.style.aspectRatio = ratio;
-                if (frameSet(frames[cat][i].full)) {
-                    box.innerHTML = `<img src="${frames[cat][i].full}" style="top:0; left:0; width:100%; height:100%; object-fit:contain;">`;
-                } else {
-                    box.innerHTML = '<div style="height:100%; background:#000; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:bold;">BASIC</div>';
-                }
+            const wrap = document.getElementById('frame-cards');
+            if (!wrap) return;
+            let html = '';
+            for (let i = 1; i <= frameCounts[cat]; i++) {
+                if (!frames[cat][i]) frames[cat][i] = { full: '', print: '' };
+                const inner = frameSet(frames[cat][i].full)
+                    ? `<img src="${frames[cat][i].full}" style="top:0; left:0; width:100%; height:100%; object-fit:contain;">`
+                    : '<div style="height:100%; background:#000; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:bold;">BASIC</div>';
+                html += `<div class="frame-opt-card" onclick="confirmFrameSelection(${i})">
+                    <div class="frame-preview-box" style="aspect-ratio:${ratio}">${inner}</div>
+                </div>`;
             }
+            wrap.innerHTML = html;
         }
 
         function startFrameTimer(sec) {
@@ -2251,7 +2316,7 @@
         }
 
         // ===== ตกแต่งรูปด้วยสติ๊กเกอร์ (เฟส 1: วางบนหน้า review — ลาก/ย่อ-ขยาย/ลบ, รวมลงรูปตอนปริ้น) =====
-        const STICKERS_ENABLED = false;   // ซ่อนไว้ — สติ๊กเกอร์+Draw โค้ดครบแล้ว เปิดทีหลังได้
+        const STICKERS_ENABLED = true;   // เปิดแล้ว 2026-07-05 (สติ๊กเกอร์+Draw) — ฟิชอาย/เพลงยังซ่อนอยู่
         const _svgSticker = s => "data:image/svg+xml," + encodeURIComponent(s);
         // สติ๊กเกอร์พื้นฐานแถมให้ (เจ้าของร้านเพิ่ม PNG เองได้ในเฟส 2)
         const DEFAULT_STICKERS = [
