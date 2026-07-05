@@ -485,8 +485,9 @@
             </div>
             <button class="btn-menu-new" onclick="saveKioskSettings()" style="margin-top: 20px;">save<span>settings</span></button>
 
-            <!-- QR รับเงินแบบอัพรูปเอง + สวิตช์ปิดกล้องสแกนสลิป — HTML ล้วน (localStorage) ใช้ได้ทุก APK -->
-            <div style="width:100%; border-top:1px solid #333; margin-top:22px; padding-top:16px; box-sizing:border-box;">
+            <!-- QR รับเงินแบบอัพรูปเอง + สวิตช์ปิดกล้องสแกนสลิป — โชว์เฉพาะ APK v1.25+ ที่มีระบบเงินเข้าอัตโนมัติ
+                 (กันเจ้าของเครื่องเก่ากดปิดสแกนสลิปทั้งที่ยังไม่มีระบบยืนยันตัวใหม่ → จะไม่มีอะไรยืนยันเงินเลย) -->
+            <div id="payqr-box" style="display:none; width:100%; border-top:1px solid #333; margin-top:22px; padding-top:16px; box-sizing:border-box;">
                 <label style="color:#888; display:block; margin-bottom:6px;">QR รับเงินแบบอัพรูปเอง (เช่น QR แม่มณี)</label>
                 <p style="color:#666; font-size:12px; margin:0 0 12px; line-height:1.5;">
                     เซฟรูป QR จากแอปธนาคาร/แม่ค้าของร้าน (แม่มณี: เมนู "QR ของฉัน" → บันทึกรูป) แล้วอัพที่นี่
@@ -504,7 +505,7 @@
                 </div>
             </div>
 
-            <!-- เงินเข้าอัตโนมัติ (ต้อง APK v1.29+ — APK เก่าซ่อนกล่องนี้): อ่านแจ้งเตือนแอปธนาคารบนตู้ → จ่ายปุ๊บข้ามหน้าเลย -->
+            <!-- เงินเข้าอัตโนมัติ (ต้อง APK v1.25+ — APK เก่าซ่อนกล่องนี้): อ่านแจ้งเตือนแอปธนาคารบนตู้ → จ่ายปุ๊บข้ามหน้าเลย -->
             <div id="moneyin-box" style="display:none; width:100%; border-top:1px solid #333; margin-top:22px; padding-top:16px; box-sizing:border-box;">
                 <label style="color:#888; display:block; margin-bottom:6px;">เงินเข้าอัตโนมัติ (ไม่ต้องโชว์สลิป)</label>
                 <p style="color:#666; font-size:12px; margin:0 0 12px; line-height:1.5;">
@@ -1667,7 +1668,7 @@
             }
         };
 
-        // ===== เงินเข้าอัตโนมัติ (APK v1.29+): แอปส่งแจ้งเตือนจากแอปธนาคารบนตู้มาให้เช็ค =====
+        // ===== เงินเข้าอัตโนมัติ (APK v1.25+): แอปส่งแจ้งเตือนจากแอปธนาคารบนตู้มาให้เช็ค =====
         // ลูกค้าสแกนจ่ายปุ๊บ ธนาคารเด้ง "เงินเข้า X บาท" → ยอดตรงราคา = ข้ามหน้าเลย ไม่ต้องโชว์สลิปกับกล้อง
         // (กล้องสแกนสลิป SlipOK ยังทำงานคู่กันเป็นตัวสำรอง — อันไหนยืนยันก่อนก็ผ่าน)
         const MONEY_IN_WORDS = ['เงินเข้า', 'ได้รับเงิน', 'รับเงินโอน', 'รับโอนเงิน', 'ได้รับโอน', 'โอนเข้า', 'รับชำระเงิน', 'ชำระเงินสำเร็จ', 'payment received', 'received'];
@@ -1719,6 +1720,11 @@
         function clearCustomPayQr() { try { localStorage.removeItem('customPayQr'); } catch (e) {} refreshPayQrUI(); }
         function toggleSlipScan() { try { localStorage.setItem('slipScanOn', slipScanEnabled() ? '0' : '1'); } catch (e) {} refreshPayQrUI(); }
         function refreshPayQrUI() {
+            // โชว์กล่องนี้เฉพาะ APK ที่มีระบบเงินเข้าอัตโนมัติ (v1.25+) — เครื่องเก่าซ่อนไว้ กันสับสน/กดปิดสแกนสลิปโดยไม่มีตัวยืนยันสำรอง
+            const box = document.getElementById('payqr-box');
+            const has = window.Android && typeof window.Android.isNotifAccessGranted === 'function';
+            if (box) box.style.display = has ? 'block' : 'none';
+            if (!has) return;
             const prev = document.getElementById('paymentqr-preview');
             const cq = getCustomPayQr();
             if (prev) prev.innerHTML = cq
@@ -1730,7 +1736,7 @@
             if (fields) fields.style.display = slipScanEnabled() ? 'flex' : 'none';   // ปิดสแกนสลิป = ซ่อนช่องกรอก SlipOK ไปด้วย
         }
 
-        // UI ตั้งค่า "เงินเข้าอัตโนมัติ" — โชว์เฉพาะเมื่อ APK รองรับ (v1.29+), APK เก่าจะซ่อนทั้งกล่อง
+        // UI ตั้งค่า "เงินเข้าอัตโนมัติ" — โชว์เฉพาะเมื่อ APK รองรับ (v1.25+), APK เก่าจะซ่อนทั้งกล่อง
         function refreshMoneyInUI() {
             const box = document.getElementById('moneyin-box');
             if (!box) return;
@@ -2446,7 +2452,7 @@
         }
 
         // ===== ตกแต่งรูปด้วยสติ๊กเกอร์ (เฟส 1: วางบนหน้า review — ลาก/ย่อ-ขยาย/ลบ, รวมลงรูปตอนปริ้น) =====
-        const STICKERS_ENABLED = true;   // เปิดแล้ว 2026-07-05 (สติ๊กเกอร์+Draw) — ฟิชอาย/เพลงยังซ่อนอยู่
+        const STICKERS_ENABLED = false;   // ซ่อนไว้ก่อน (คำสั่งก๊อง 2026-07-05) — สติ๊กเกอร์+Draw พร้อมเปิดทีหลัง แค่เปลี่ยนเป็น true
         const _svgSticker = s => "data:image/svg+xml," + encodeURIComponent(s);
         // สติ๊กเกอร์พื้นฐานแถมให้ (เจ้าของร้านเพิ่ม PNG เองได้ในเฟส 2)
         const DEFAULT_STICKERS = [
