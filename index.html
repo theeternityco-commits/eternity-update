@@ -114,7 +114,11 @@
         /* --- Page: Choose Your Style --- */
         #page-frame { background: #fff; text-align: center; }
         /* แถวเลือกกรอบ: กรอบน้อยอยู่กลาง, กรอบเยอะเลื่อนซ้าย-ขวาได้ (เลือกได้ไม่อั้น) */
-        .frame-grid { display: flex; gap: 20px; justify-content: center; width: 95%; max-width: 900px; margin-top: 20px; overflow-x: auto; padding: 6px 4px 14px; }
+        /* ห้ามใช้ justify-content:center กับแถวที่เลื่อนได้ — กรอบล้นจอแล้วหัวแถวจะโดนดันหลุดซ้ายจนเลื่อนไม่ถึง
+           ใช้ margin:auto ที่ใบแรก/ใบสุดท้ายแทน (พอดีจอ = กึ่งกลาง, ล้นจอ = เลื่อนถึงทุกใบ) */
+        .frame-grid { display: flex; gap: 20px; width: 95%; max-width: 900px; margin-top: 20px; overflow-x: auto; padding: 6px 4px 14px; }
+        .frame-grid .frame-opt-card:first-child { margin-left: auto; }
+        .frame-grid .frame-opt-card:last-child { margin-right: auto; }
         .frame-opt-card {
             flex: 0 0 auto; width: clamp(150px, 26vw, 210px); background: #fff; border: 1px solid #eee; border-radius: 20px;
             padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.05);
