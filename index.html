@@ -483,6 +483,20 @@
             <input type="text" id="input-branch" style="padding: 15px; border-radius: 12px; border: 1px solid #333; background: #111; color: white;">
             <button class="btn-menu-new" onclick="saveKioskSettings()" style="margin-top: 20px;">save<span>settings</span></button>
 
+            <!-- เงินเข้าอัตโนมัติ (ต้อง APK v1.29+ — APK เก่าซ่อนกล่องนี้): อ่านแจ้งเตือนแอปธนาคารบนตู้ → จ่ายปุ๊บข้ามหน้าเลย -->
+            <div id="moneyin-box" style="display:none; width:100%; border-top:1px solid #333; margin-top:22px; padding-top:16px; box-sizing:border-box;">
+                <label style="color:#888; display:block; margin-bottom:6px;">เงินเข้าอัตโนมัติ (ไม่ต้องโชว์สลิป)</label>
+                <p style="color:#666; font-size:12px; margin:0 0 12px; line-height:1.5;">
+                    ลงแอปธนาคารของร้านไว้บนตู้ (แม่มณี / K PLUS / ถุงเงิน ฯลฯ) แล้วเปิดสิทธิ์ให้แอปอ่านแจ้งเตือน
+                    — พอมีแจ้งเตือน "เงินเข้า" ยอดตรงราคา เครื่องจะข้ามหน้าให้เองทันที (กล้องสแกนสลิปยังเป็นตัวสำรองเหมือนเดิม)
+                </p>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                    <span id="moneyin-status" style="font-weight:bold; color:#ff6b6b;">ยังไม่เปิดสิทธิ์</span>
+                    <button onclick="window.Android.openNotifAccessSettings()" style="min-width:110px; padding:12px 18px; border-radius:50px; border:1px solid #fff; background:transparent; color:#fff; font-size:15px; font-weight:bold; cursor:pointer;">เปิดสิทธิ์</button>
+                </div>
+                <button onclick="testMoneyIn()" style="width:100%; margin-top:12px; padding:12px; border-radius:12px; border:1px solid #555; background:transparent; color:#aaa; font-size:14px; cursor:pointer;">ทดสอบเงินเข้า (ยิงแจ้งเตือนปลอมใน 6 วิ)</button>
+            </div>
+
             <!-- โหมด QR รับรูป + ข้อความรูปหมดอายุ — เซฟทันทีที่กด (เก็บในเครื่องแบบ HTML ล้วน) -->
             <div style="width:100%; border-top:1px solid #333; margin-top:22px; padding-top:16px; box-sizing:border-box;">
                 <label style="color:#888; display:block; margin-bottom:10px;">โหมด QR รับรูป</label>
@@ -1076,7 +1090,7 @@
 
         function toggleOverlay(id, active) {
             document.getElementById(id).classList.toggle('active', active);
-            if (id === 'overlay-qr-edit' && active) { loadKioskSettings(); loadQrEditUI(); }
+            if (id === 'overlay-qr-edit' && active) { loadKioskSettings(); loadQrEditUI(); refreshMoneyInUI(); }
             if (id === 'overlay-frames' && active) selectEditCategory(editCategory || 'sg');
             if (id === 'overlay-price-edit' && active) loadPriceInputs();
             if (id === 'overlay-print-adjust' && active) loadBwAdjustPanel();
@@ -1539,11 +1553,13 @@
 
             // เริ่มสแกนสลิปอัตโนมัติด้วยกล้อง (ตรวจกับ SlipOK)
             startPaySlipScan(price);
+            awaitingPayment = true;   // เปิดหูฟังแจ้งเตือน "เงินเข้า" จากแอปธนาคารด้วย (ไม่ต้องโชว์สลิปถ้าเงินเข้าตรงยอด)
         }
 
         // --- สแกนสลิปเพื่อตรวจการชำระเงินอัตโนมัติ ---
         let paySlipStream = null;
         let paySlipTimer = null;
+        let awaitingPayment = false;   // true เฉพาะตอนรอจ่ายเงินอยู่หน้า QR (กันแจ้งเตือนหลงมาสั่งข้ามหน้าเอง)
 
         function startPaySlipScan(price) {
             selectedKioskPrice = price;
@@ -1572,6 +1588,7 @@
         }
 
         function stopPaySlipScan() {
+            awaitingPayment = false;   // ออกจากโหมดรอจ่ายเงิน — ปิดหูฟังแจ้งเตือนเงินเข้าด้วย
             if (paySlipTimer) { clearInterval(paySlipTimer); paySlipTimer = null; }
             if (paySlipStream) { paySlipStream.getTracks().forEach(t => t.stop()); paySlipStream = null; }
             const box = document.getElementById('pay-slip-box');
@@ -1619,6 +1636,50 @@
                 if (st && data.message) st.innerText = data.message;
             }
         };
+
+        // ===== เงินเข้าอัตโนมัติ (APK v1.29+): แอปส่งแจ้งเตือนจากแอปธนาคารบนตู้มาให้เช็ค =====
+        // ลูกค้าสแกนจ่ายปุ๊บ ธนาคารเด้ง "เงินเข้า X บาท" → ยอดตรงราคา = ข้ามหน้าเลย ไม่ต้องโชว์สลิปกับกล้อง
+        // (กล้องสแกนสลิป SlipOK ยังทำงานคู่กันเป็นตัวสำรอง — อันไหนยืนยันก่อนก็ผ่าน)
+        const MONEY_IN_WORDS = ['เงินเข้า', 'ได้รับเงิน', 'รับเงินโอน', 'รับโอนเงิน', 'ได้รับโอน', 'โอนเข้า', 'รับชำระเงิน', 'ชำระเงินสำเร็จ', 'payment received', 'received'];
+        function parseMoneyIn(text) {
+            const t = String(text || '').replace(/ /g, ' ');   // แจ้งเตือนธนาคารบางแอปใช้ non-breaking space
+            const low = t.toLowerCase();
+            if (!MONEY_IN_WORDS.some(w => low.includes(w.toLowerCase()))) return null;
+            const m = t.match(/([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:บาท|thb|฿)/i) || t.match(/(?:฿|thb)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+            if (!m) return null;
+            const v = parseFloat(m[1].replace(/,/g, ''));
+            return isNaN(v) ? null : v;
+        }
+        window.onBankNotification = function(data) {
+            try { if (typeof data === 'string') data = JSON.parse(data); } catch (e) { return; }
+            const amt = parseMoneyIn(((data && data.title) || '') + ' ' + ((data && data.text) || ''));
+            if (amt == null) return;
+            if (!awaitingPayment) {
+                // ยังไม่ได้อยู่หน้าจ่ายเงิน — เด้งบอกเฉยๆ ว่าระบบเห็นแจ้งเตือน (ไว้ใช้ตอนทดสอบ)
+                if (window.Android && window.Android.showToast) window.Android.showToast('ระบบเห็นแจ้งเตือนเงินเข้า ' + amt + ' บาท ✓');
+                return;
+            }
+            if (Math.abs(amt - selectedKioskPrice) > 0.005) return;   // ยอดไม่ตรงราคา — ไม่ข้าม (กันโอนขาด/เกิน)
+            stopPaySlipScan();
+            if (window.Android && window.Android.showToast) window.Android.showToast('ตรวจพบเงินเข้า ' + amt + ' บาท — ยืนยันการชำระเงินสำเร็จ!');
+            showPage('page-layout');
+        };
+
+        // UI ตั้งค่า "เงินเข้าอัตโนมัติ" — โชว์เฉพาะเมื่อ APK รองรับ (v1.29+), APK เก่าจะซ่อนทั้งกล่อง
+        function refreshMoneyInUI() {
+            const box = document.getElementById('moneyin-box');
+            if (!box) return;
+            const has = window.Android && typeof window.Android.isNotifAccessGranted === 'function';
+            box.style.display = has ? 'block' : 'none';
+            if (!has) return;
+            const ok = window.Android.isNotifAccessGranted();
+            const st = document.getElementById('moneyin-status');
+            if (st) { st.innerText = ok ? 'เปิดสิทธิ์แล้ว ✓' : 'ยังไม่เปิดสิทธิ์'; st.style.color = ok ? '#1dd1a1' : '#ff6b6b'; }
+        }
+        function testMoneyIn() {
+            const amt = (kioskPrices && kioskPrices[1]) ? kioskPrices[1] : 35;
+            window.Android.postTestMoneyNotification(String(amt));
+        }
 
         // เลือกกลุ่มที่จะแก้ในหน้า frame edit แล้ว render 6 ปุ่ม (สี 3 + ขาวดำ 3)
         function selectEditCategory(cat) {
