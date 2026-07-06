@@ -488,9 +488,9 @@
             <!-- QR รับเงินแบบอัพรูปเอง + สวิตช์ปิดกล้องสแกนสลิป — โชว์เฉพาะ APK v1.25+ ที่มีระบบเงินเข้าอัตโนมัติ
                  (กันเจ้าของเครื่องเก่ากดปิดสแกนสลิปทั้งที่ยังไม่มีระบบยืนยันตัวใหม่ → จะไม่มีอะไรยืนยันเงินเลย) -->
             <div id="payqr-box" style="display:none; width:100%; border-top:1px solid #333; margin-top:22px; padding-top:16px; box-sizing:border-box;">
-                <label style="color:#888; display:block; margin-bottom:6px;">QR รับเงินแบบอัพรูปเอง (เช่น QR แม่มณี)</label>
+                <label style="color:#888; display:block; margin-bottom:6px;">QR รับเงินแบบอัพรูปเอง (เช่น QR ร้านค้าจาก K SHOP)</label>
                 <p style="color:#666; font-size:12px; margin:0 0 12px; line-height:1.5;">
-                    เซฟรูป QR จากแอปธนาคาร/แม่ค้าของร้าน (แม่มณี: เมนู "QR ของฉัน" → บันทึกรูป) แล้วอัพที่นี่
+                    เซฟรูป QR รับเงินจากแอปธนาคารของร้าน (K SHOP / SCB) แล้วอัพที่นี่
                     — หน้าจ่ายเงินจะโชว์รูปนี้แทน QR พร้อมเพย์อัตโนมัติ ทำให้เงินเข้าบัญชีเดียวกับแอปบนตู้ แจ้งเตือน "เงินเข้า" เด้งแน่นอน
                     (QR แบบรูปไม่มียอดฝัง ลูกค้าต้องพิมพ์ยอดเอง — จอจะย้ำยอดให้ชัดๆ) ถ้าไม่อัพ ระบบใช้ QR พร้อมเพย์จากเบอร์ด้านบนเหมือนเดิม
                 </p>
@@ -509,7 +509,7 @@
             <div id="moneyin-box" style="display:none; width:100%; border-top:1px solid #333; margin-top:22px; padding-top:16px; box-sizing:border-box;">
                 <label style="color:#888; display:block; margin-bottom:6px;">เงินเข้าอัตโนมัติ (ไม่ต้องโชว์สลิป)</label>
                 <p style="color:#666; font-size:12px; margin:0 0 12px; line-height:1.5;">
-                    ลงแอปธนาคารของร้านไว้บนตู้ (แม่มณี / K PLUS / ถุงเงิน ฯลฯ) แล้วเปิดสิทธิ์ให้แอปอ่านแจ้งเตือน
+                    ลงแอปธนาคารของร้านไว้บนตู้ (K SHOP / SCB) แล้วเปิดสิทธิ์ให้แอปอ่านแจ้งเตือน
                     — พอมีแจ้งเตือน "เงินเข้า" ยอดตรงราคา เครื่องจะข้ามหน้าให้เองทันที (กล้องสแกนสลิปยังเป็นตัวสำรองเหมือนเดิม)
                 </p>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
@@ -517,6 +517,7 @@
                     <button onclick="window.Android.openNotifAccessSettings()" style="min-width:110px; padding:12px 18px; border-radius:50px; border:1px solid #fff; background:transparent; color:#fff; font-size:15px; font-weight:bold; cursor:pointer;">เปิดสิทธิ์</button>
                 </div>
                 <button onclick="testMoneyIn()" style="width:100%; margin-top:12px; padding:12px; border-radius:12px; border:1px solid #555; background:transparent; color:#aaa; font-size:14px; cursor:pointer;">ทดสอบเงินเข้า (ยิงแจ้งเตือนปลอมใน 6 วิ)</button>
+                <button onclick="showBankNotifLog()" style="width:100%; margin-top:8px; padding:12px; border-radius:12px; border:1px solid #555; background:transparent; color:#aaa; font-size:14px; cursor:pointer;">ดูแจ้งเตือนล่าสุด (แก้ปัญหา)</button>
             </div>
 
             <!-- โหมด QR รับรูป + ข้อความรูปหมดอายุ — เซฟทันทีที่กด (เก็บในเครื่องแบบ HTML ล้วน) -->
@@ -821,6 +822,11 @@
             <button id="btn-print-again" style="display:none; padding:15px 60px; border-radius:50px; border:none; background:#111; color:#fff; font-size:20px; font-weight:bold; cursor:pointer; margin-bottom:14px;" onclick="printAgain()">ถ่ายเพิ่ม</button>
             <button class="btn-done-pill" onclick="goHome()">done</button>
             <div id="print-countdown" style="margin-top:20px; color:#888; font-size:16px;"></div>
+            <!-- แถบควบคุมหน้าจ่ายเงิน (โชว์เฉพาะตอนรอจ่าย) — จำกัดเวลา 30 วิ + ปุ่มกลับ -->
+            <div id="pay-controls" style="display:none; flex-direction:column; align-items:center; gap:12px; margin-top:18px;">
+                <div id="pay-timeout-text" style="color:#999; font-size:15px;"></div>
+                <button onclick="cancelPayment()" style="padding:12px 46px; border-radius:50px; border:1px solid #bbb; background:transparent; color:#555; font-size:17px; font-weight:bold; cursor:pointer;">← กลับ</button>
+            </div>
         </div>
         <!-- กล้องสแกนสลิป (ตรวจการชำระเงินอัตโนมัติ) -->
         <div id="pay-slip-box" style="display:none; flex-direction:column; align-items:center; margin-top:25px;">
@@ -1585,6 +1591,32 @@
             if (slipScanEnabled()) startPaySlipScan(price);
             else document.getElementById('pay-slip-box').style.display = 'none';
             awaitingPayment = true;   // เปิดหูฟังแจ้งเตือน "เงินเข้า" จากแอปธนาคารด้วย (ไม่ต้องโชว์สลิปถ้าเงินเข้าตรงยอด)
+            // จำกัดเวลา 30 วิ + โชว์ปุ่มกลับ (กันลูกค้าค้างหน้าจ่ายเงิน / กดผิด)
+            document.getElementById('pay-controls').style.display = 'flex';
+            startPayTimeout();
+        }
+
+        // --- จำกัดเวลาหน้าจ่ายเงิน 30 วิ แล้วกลับหน้าเลือกจำนวนเอง + ปุ่มกลับ ---
+        let payTimeoutTimer = null;
+        let payTimeoutLeft = 0;
+        function startPayTimeout() {
+            stopPayTimeout();
+            payTimeoutLeft = 30;
+            const el = document.getElementById('pay-timeout-text');
+            const tick = () => {
+                if (el) el.innerText = 'กลับหน้าเลือกอัตโนมัติใน ' + payTimeoutLeft + ' วิ';
+                if (payTimeoutLeft <= 0) { cancelPayment(); return; }
+                payTimeoutLeft--;
+            };
+            tick();
+            payTimeoutTimer = setInterval(tick, 1000);
+        }
+        function stopPayTimeout() {
+            if (payTimeoutTimer) { clearInterval(payTimeoutTimer); payTimeoutTimer = null; }
+        }
+        function cancelPayment() {
+            stopPaySlipScan();          // ปิดกล้อง + awaitingPayment=false + หยุดตัวนับ + ซ่อนปุ่ม
+            showPage('page-quantity');  // กลับหน้าเลือกจำนวน
         }
 
         // --- สแกนสลิปเพื่อตรวจการชำระเงินอัตโนมัติ ---
@@ -1620,6 +1652,8 @@
 
         function stopPaySlipScan() {
             awaitingPayment = false;   // ออกจากโหมดรอจ่ายเงิน — ปิดหูฟังแจ้งเตือนเงินเข้าด้วย
+            stopPayTimeout();          // หยุดตัวนับถอยหลัง 30 วิ (ทุกทางออกจากหน้าจ่ายเงินผ่านตรงนี้)
+            const pc = document.getElementById('pay-controls'); if (pc) pc.style.display = 'none';
             if (paySlipTimer) { clearInterval(paySlipTimer); paySlipTimer = null; }
             if (paySlipStream) { paySlipStream.getTracks().forEach(t => t.stop()); paySlipStream = null; }
             const box = document.getElementById('pay-slip-box');
@@ -1676,21 +1710,40 @@
             const t = String(text || '').replace(/ /g, ' ');   // แจ้งเตือนธนาคารบางแอปใช้ non-breaking space
             const low = t.toLowerCase();
             if (!MONEY_IN_WORDS.some(w => low.includes(w.toLowerCase()))) return null;
-            const m = t.match(/([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:บาท|thb|฿)/i) || t.match(/(?:฿|thb)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+            // หน่วยเงิน: "บาท" เต็มคำ หรือ "บ." แบบย่อ (K SHOP ใช้ "2.00 บ.") — anchored ด้วยตัวเลขข้างหน้า จึงไม่ไปแมตช์ "บ" ในคำอื่น
+            const m = t.match(/([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:บาท|บ\.|thb|฿)/i) || t.match(/(?:฿|thb)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
             if (!m) return null;
             const v = parseFloat(m[1].replace(/,/g, ''));
             return isNaN(v) ? null : v;
         }
+        // เก็บแจ้งเตือนดิบที่เข้ามาไว้ดูย้อนหลัง (แม้จับยอดไม่ได้ก็เห็น) — ช่วยแก้ปัญหาหน้างานโดยไม่ต้องเดา
+        let bankNotifLog = [];
+        function logBankNotif(pkg, title, text, amt) {
+            bankNotifLog.unshift({ t: new Date().toLocaleTimeString('th-TH'), pkg: pkg || '', title: title || '', text: text || '', amt });
+            if (bankNotifLog.length > 8) bankNotifLog.length = 8;
+        }
+        function showBankNotifLog() {
+            if (!bankNotifLog.length) { alert('ยังไม่เห็นแจ้งเตือนอะไรเข้ามาเลย\n\nเช็ค: เปิดสิทธิ์ Notification access หรือยัง? แอปธนาคารเปิด notifications อยู่ไหม? (บางแอปโชว์ในแอปเฉยๆ ไม่ขึ้นแจ้งเตือนจริงถ้าเปิดแอปค้างอยู่ — ลองย่อแอปธนาคารไว้เบื้องหลังก่อนโอน)'); return; }
+            const msg = bankNotifLog.map(n =>
+                `[${n.t}] ${n.pkg}\nยอดที่จับได้: ${n.amt == null ? '(จับไม่ได้)' : n.amt + ' บาท'}\nหัวข้อ: ${n.title}\nข้อความ: ${n.text}`
+            ).join('\n\n---\n\n');
+            alert('แจ้งเตือนล่าสุด (ใหม่สุดอยู่บน):\n\n' + msg);
+        }
         window.onBankNotification = function(data) {
             try { if (typeof data === 'string') data = JSON.parse(data); } catch (e) { return; }
             const amt = parseMoneyIn(((data && data.title) || '') + ' ' + ((data && data.text) || ''));
+            logBankNotif(data && data.pkg, data && data.title, data && data.text, amt);
             if (amt == null) return;
             if (!awaitingPayment) {
                 // ยังไม่ได้อยู่หน้าจ่ายเงิน — เด้งบอกเฉยๆ ว่าระบบเห็นแจ้งเตือน (ไว้ใช้ตอนทดสอบ)
                 if (window.Android && window.Android.showToast) window.Android.showToast('ระบบเห็นแจ้งเตือนเงินเข้า ' + amt + ' บาท ✓');
                 return;
             }
-            if (Math.abs(amt - selectedKioskPrice) > 0.005) return;   // ยอดไม่ตรงราคา — ไม่ข้าม (กันโอนขาด/เกิน)
+            if (Math.abs(amt - selectedKioskPrice) > 0.005) {
+                // ยอดไม่ตรงราคา — ไม่ข้าม (กันโอนขาด/เกิน) แต่บอกให้รู้ จะได้ไม่งงว่าทำไมไม่เลื่อน
+                if (window.Android && window.Android.showToast) window.Android.showToast('เห็นเงินเข้า ' + amt + ' บาท แต่ยอดไม่ตรงราคา ' + selectedKioskPrice + ' บาท — ไม่ข้ามหน้า');
+                return;
+            }
             stopPaySlipScan();
             if (window.Android && window.Android.showToast) window.Android.showToast('ตรวจพบเงินเข้า ' + amt + ' บาท — ยืนยันการชำระเงินสำเร็จ!');
             showPage('page-layout');
