@@ -162,7 +162,7 @@
             background: linear-gradient(180deg, #f5f5f5 0%, #c4c4c4 100%);
             border-radius: 12px; display: flex; align-items: center; justify-content: center;
             box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-            z-index: 30; position: relative;
+            z-index: 10; position: relative;   /* อยู่หลังกระดาษ — กระดาษห้อยทับหน้าแถบ (เหมือน mini) */
         }
 
         /* ช่องรูดำที่อยู่ลึกเข้าไป */
@@ -175,8 +175,8 @@
 
         .paper-scroll-area {
             width: 260px; height: auto; overflow: hidden;  /* height:auto = โชว์ใบเสร็จเต็มใบ ไม่ตัดท่อนล่าง */
-            z-index: 10; position: relative;
-            margin-top: 6px; /* กระดาษโผล่ใต้หัวเครื่องปริ้น ไม่มุดเข้าไปบังหัวกรอบ */
+            z-index: 20; position: relative;   /* อยู่หน้าแถบเหล็ก — แผ่นกระดาษห้อยทับหน้าช่องที่มันไหลออกมา */
+            margin-top: -25px; /* ท็อปกระดาษตรงกลางรู (รูอยู่ 19-31px จากหัวแถบ) — กระดาษดูไหลออกจากช่องพอดี */
             background: transparent;
         }
 
