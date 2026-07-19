@@ -368,6 +368,7 @@
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-printer-setup', true)">printer<span>setup (usb/bt/wifi)</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-qr-edit', true)">qrcode<span>edit</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-capture-time', true)">capture<span>time / เวลาถ่าย</span></button>
+            <button class="btn-menu-new" onclick="toggleOverlay('overlay-page-timeout', true)">page time<span>เวลารอแต่ละหน้า</span></button>
             <button class="btn-menu-new" id="btn-opt-stickers" style="display:none;" onclick="toggleOverlay('overlay-stickers', true)">stickers<span>edit / สติ๊กเกอร์</span></button>
             <button class="btn-menu-new" id="btn-opt-fisheye" style="display:none;" onclick="toggleOverlay('overlay-fisheye', true)">fisheye<span>zoom / โป่ง</span></button>
             <button class="btn-menu-new" onclick="checkAppUpdate()" style="font-size:16px; padding:15px;">app update<span id="app-version-label">check now</span></button>
@@ -437,6 +438,25 @@
             <div style="color:#1dd1a1; font-weight:bold; text-align:center; font-size:18px;">เวลาถ่าย: <span id="capture-time-val">3</span> วินาที</div>
         </div>
         <button class="btn-back-link" onclick="toggleOverlay('overlay-capture-time', false)">back</button>
+    </div>
+
+    <!-- เวลารอแต่ละหน้า — ค่าเดียวคุมทุกหน้า (เลือกกรอบ/เลย์เอาต์/ดูรูป/จ่ายเงิน), เลื่อนสุด = ไม่จำกัด -->
+    <div id="overlay-page-timeout" class="overlay">
+        <div class="boot-logo-text">receipt<span>photobooth</span></div>
+        <div class="overlay-subtitle">page time</div>
+        <div class="overlay-menu" style="gap: 16px;">
+            <p style="color:#888; font-size:13px; margin:0; text-align:center; max-width:520px;">
+                เวลารอในแต่ละหน้า ก่อนเด้งกลับหน้าแรกอัตโนมัติ (ใช้กับทุกหน้าพร้อมกัน) — เลื่อนแล้วเซฟอัตโนมัติ<br>
+                เลื่อนสุดขวา = <b style="color:#1dd1a1;">ไม่จำกัดเวลา</b> (หลอดค้างเต็ม ไม่เด้งกลับเอง)
+            </p>
+            <div style="display:flex; align-items:center; gap:12px; width:90%; max-width:450px; align-self:center;">
+                <span style="color:#888; font-size:13px;">10 วิ</span>
+                <input type="range" id="page-timeout-range" min="10" max="65" step="5" value="30" style="flex:1;" oninput="onPageTimeoutRange(this.value)">
+                <span style="color:#888; font-size:13px;">∞</span>
+            </div>
+            <div style="color:#1dd1a1; font-weight:bold; text-align:center; font-size:18px;">รอต่อหน้า: <span id="page-timeout-val">30 วินาที</span></div>
+        </div>
+        <button class="btn-back-link" onclick="toggleOverlay('overlay-page-timeout', false)">back</button>
     </div>
 
     <div id="overlay-frames" class="overlay">
@@ -903,6 +923,14 @@
         function loadCaptureTimePanel() { const r = document.getElementById('capture-time-range'); const el = document.getElementById('capture-time-val'); if (r) r.value = captureSeconds; if (el) el.textContent = captureSeconds; }
         function onCaptureTimeRange(v) { setCaptureTime(v); const el = document.getElementById('capture-time-val'); if (el) el.textContent = captureSeconds; }
 
+        // เวลารอแต่ละหน้า (ก่อนเด้งกลับ/ทำต่ออัตโนมัติ) — ค่าเดียวคุมทุกหน้า, 0 = ไม่จำกัดเวลา (หลอดค้างเต็ม)
+        let pageTimeoutSeconds = 30;
+        function loadPageTimeout() { try { const v = localStorage.getItem('pageTimeoutSeconds'); if (v !== null) { const n = parseInt(v, 10); pageTimeoutSeconds = isNaN(n) ? 30 : n; } } catch (e) {} }
+        function setPageTimeout(v) { let n = parseInt(v, 10); if (isNaN(n)) n = 30; if (n > 60) n = 0; else n = Math.max(5, n); pageTimeoutSeconds = n; try { localStorage.setItem('pageTimeoutSeconds', String(n)); } catch (e) {} }
+        function pageTimeoutLabel() { return pageTimeoutSeconds === 0 ? 'ไม่จำกัดเวลา ∞' : pageTimeoutSeconds + ' วินาที'; }
+        function loadPageTimeoutPanel() { const r = document.getElementById('page-timeout-range'); const el = document.getElementById('page-timeout-val'); if (r) r.value = (pageTimeoutSeconds === 0 ? 65 : pageTimeoutSeconds); if (el) el.textContent = pageTimeoutLabel(); }
+        function onPageTimeoutRange(v) { setPageTimeout(v); const el = document.getElementById('page-timeout-val'); if (el) el.textContent = pageTimeoutLabel(); }
+
         // ===== โหมด QR รับรูป + ข้อความแจ้งรูปหมดอายุ (เก็บใน localStorage จึงอัปออนไลน์ได้ ไม่ต้องทำ APK) =====
         // qrMode: 'screen' = โชว์ QR บนจอ (เหมือนเดิม) · 'print' = พิมพ์ QR ลงบนสลิป ลูกค้าสแกนจากกระดาษ
         let qrMode = 'screen';
@@ -1025,6 +1053,7 @@
         setTimeout(loadUserStickers, 0);      // โหลดสติ๊กเกอร์ที่เจ้าของร้านเพิ่มไว้ (defer กัน TDZ ของ let)
         setTimeout(loadDecorationTime, 0);    // โหลดค่าเวลาหน้าตกแต่ง
         setTimeout(loadCaptureTime, 0);       // โหลดเวลานับถอยหลังก่อนถ่าย
+        setTimeout(loadPageTimeout, 0);       // โหลดเวลารอแต่ละหน้า (ก่อนเด้งกลับอัตโนมัติ)
         setTimeout(loadHiddenBase, 0);        // โหลดรายการสติ๊กเกอร์พื้นฐานที่ถูกซ่อน
         setTimeout(loadQrPrefs, 0);           // โหลดโหมด QR + สวิตช์ข้อความรูปหมดอายุ
 
@@ -1104,15 +1133,15 @@
             document.getElementById(id).classList.add('active');
             syncHomeVideoPlayback(id);
             // หน้าเลือก layout: เริ่มนับถอยหลัง auto-cancel ทุกครั้งที่เข้า, ออกจากหน้าเมื่อไหร่หยุดทันที
-            if (id === 'page-layout') startLayoutTimer(15);
+            if (id === 'page-layout') startLayoutTimer(pageTimeoutSeconds);
             else stopLayoutTimer();
             // หน้า "Choose Your Style" มี auto-cancel — เข้าหน้านี้เริ่มจับเวลาใหม่ (กดback จากหน้าเลือกกล้องก็กลับมาทำงาน), ออกหน้าหยุดทันที
-            if (id === 'page-frame') startFrameTimer(15);
+            if (id === 'page-frame') startFrameTimer(pageTimeoutSeconds);
             else stopFrameTimer();
             // หน้าเลือกโหมดกล้องก็มี auto-cancel เหมือนกัน — ออกจากหน้าเมื่อไหร่หยุดทันที
             if (id !== 'page-cammode') stopCamModeTimer();
             // หน้า review: นับถอยหลัง 60 วิให้ลูกค้าแต่ง/ตัดสินใจ — เข้าหน้าเริ่มใหม่, ออกหน้าหยุด
-            if (id === 'page-review') startReviewTimer(60);
+            if (id === 'page-review') startReviewTimer(pageTimeoutSeconds);
             else stopReviewTimer();
         }
 
@@ -1126,6 +1155,7 @@
             if (id === 'overlay-home-video' && active) refreshHomeVideoStatus();
             if (id === 'overlay-fisheye' && active) loadFisheyePanel();
             if (id === 'overlay-capture-time' && active) loadCaptureTimePanel();
+            if (id === 'overlay-page-timeout' && active) loadPageTimeoutPanel();
             if (id === 'overlay-stickers' && active) openStickerManager();
             if (id === 'overlay-main' && active) refreshVersionLabel();
         }
@@ -1601,8 +1631,9 @@
         let payTimeoutLeft = 0;
         function startPayTimeout() {
             stopPayTimeout();
-            payTimeoutLeft = 30;
             const el = document.getElementById('pay-timeout-text');
+            if (!pageTimeoutSeconds) { if (el) el.innerText = ''; return; }   // ไม่จำกัดเวลา — มีปุ่ม "← กลับ" ให้กดเอง
+            payTimeoutLeft = pageTimeoutSeconds;
             const tick = () => {
                 if (el) el.innerText = 'กลับหน้าเลือกอัตโนมัติใน ' + payTimeoutLeft + ' วิ';
                 if (payTimeoutLeft <= 0) { cancelPayment(); return; }
@@ -1920,7 +1951,7 @@
             if (!showFrameChoice) { confirmFrameSelection(1); return; }
             updateStylePreviews();   // โชว์กรอบของกลุ่มที่ตรงกับเลย์เอาต์ที่เลือก
             showPage('page-frame');
-            startFrameTimer(15);
+            startFrameTimer(pageTimeoutSeconds);
         }
 
         // พรีวิวในหน้า "Choose Your Style" — สร้างการ์ดกรอบไดนามิก (ไม่จำกัดจำนวน, ไม่มีป้าย Style) ของกลุ่มปัจจุบัน
@@ -1945,11 +1976,10 @@
         function startFrameTimer(sec) {
             stopFrameTimer();
             const bar = document.getElementById('frame-timer-bar');
+            if (bar) { bar.style.transition = 'none'; bar.style.width = '100%'; }
+            if (!sec) return;   // ไม่จำกัดเวลา — หลอดค้างเต็ม ไม่นับถอยหลัง ไม่เด้งกลับ
             let remain = sec;
-            if (bar) {
-                bar.style.transition = 'none'; bar.style.width = '100%';
-                setTimeout(() => { bar.style.transition = `width ${sec}s steps(17, end)`; bar.style.width = '0%'; }, 50);
-            }
+            if (bar) setTimeout(() => { bar.style.transition = `width ${sec}s steps(17, end)`; bar.style.width = '0%'; }, 50);
             // ครบเวลาแล้วเด้งกลับหน้า home_video (เดิมเป็น no-op — แถบวิ่งแต่ไม่ทำอะไร)
             frameTimer = setInterval(() => {
                 remain--;
@@ -1966,12 +1996,11 @@
             stopLayoutTimer();
             const cdEl = document.getElementById('layout-countdown');
             const bar = document.getElementById('layout-timer-bar');
+            if (bar) { bar.style.transition = 'none'; bar.style.width = '100%'; }
+            if (!sec) { if (cdEl) cdEl.innerText = ''; return; }   // ไม่จำกัดเวลา — หลอดค้างเต็ม ไม่เด้งกลับ
             let remain = sec;
             if (cdEl) cdEl.innerText = remain;
-            if (bar) {
-                bar.style.transition = 'none'; bar.style.width = '100%';
-                setTimeout(() => { bar.style.transition = `width ${sec}s steps(17, end)`; bar.style.width = '0%'; }, 50);
-            }
+            if (bar) setTimeout(() => { bar.style.transition = `width ${sec}s steps(17, end)`; bar.style.width = '0%'; }, 50);
             layoutTimer = setInterval(() => {
                 remain--;
                 if (cdEl) cdEl.innerText = Math.max(remain, 0);
@@ -1995,7 +2024,7 @@
             }
             // ไปหน้าเลือกโหมดกล้อง (ปกติ/ฟิชอาย) ก่อนเข้ากล้องจริง
             showPage('page-cammode');
-            startCamModeTimer(15);
+            startCamModeTimer(pageTimeoutSeconds);
         }
 
         // เลือกโหมดกล้องแล้วเริ่มถ่าย
@@ -2010,11 +2039,10 @@
         function startCamModeTimer(sec) {
             stopCamModeTimer();
             const bar = document.getElementById('cammode-timer-bar');
+            if (bar) { bar.style.transition = 'none'; bar.style.width = '100%'; }
+            if (!sec) return;   // ไม่จำกัดเวลา — หลอดค้างเต็ม ไม่เด้งกลับ
             let remain = sec;
-            if (bar) {
-                bar.style.transition = 'none'; bar.style.width = '100%';
-                setTimeout(() => { bar.style.transition = `width ${sec}s steps(17, end)`; bar.style.width = '0%'; }, 50);
-            }
+            if (bar) setTimeout(() => { bar.style.transition = `width ${sec}s steps(17, end)`; bar.style.width = '0%'; }, 50);
             camModeTimer = setInterval(() => {
                 remain--;
                 if (remain <= 0) { stopCamModeTimer(); goHome(); }
@@ -2031,11 +2059,10 @@
         function startReviewTimer(sec) {
             stopReviewTimer();
             const bar = document.getElementById('review-timer-bar');
+            if (bar) { bar.style.transition = 'none'; bar.style.width = '100%'; }
+            if (!sec) return;   // ไม่จำกัดเวลา — หลอดค้างเต็ม ไม่ปริ้นเอง (รอลูกค้ากดปริ้น)
             let remain = sec;
-            if (bar) {
-                bar.style.transition = 'none'; bar.style.width = '100%';
-                setTimeout(() => { bar.style.transition = `width ${sec}s steps(17, end)`; bar.style.width = '0%'; }, 50);
-            }
+            if (bar) setTimeout(() => { bar.style.transition = `width ${sec}s steps(17, end)`; bar.style.width = '0%'; }, 50);
             reviewTimer = setInterval(() => {
                 remain--;
                 if (remain <= 0) { stopReviewTimer(); confirmPrint(); }
@@ -2505,7 +2532,7 @@
         }
 
         // ===== ตกแต่งรูปด้วยสติ๊กเกอร์ (เฟส 1: วางบนหน้า review — ลาก/ย่อ-ขยาย/ลบ, รวมลงรูปตอนปริ้น) =====
-        const STICKERS_ENABLED = false;   // ซ่อนไว้ก่อน (คำสั่งก๊อง 2026-07-05) — สติ๊กเกอร์+Draw พร้อมเปิดทีหลัง แค่เปลี่ยนเป็น true
+        const STICKERS_ENABLED = true;   // เปิดแล้ว 20 กค 2026 (คำสั่งก๊อง) — สติ๊กเกอร์+Draw / ฟิชอาย+เพลงยังซ่อน
         const _svgSticker = s => "data:image/svg+xml," + encodeURIComponent(s);
         // สติ๊กเกอร์พื้นฐานแถมให้ (เจ้าของร้านเพิ่ม PNG เองได้ในเฟส 2)
         const DEFAULT_STICKERS = [
