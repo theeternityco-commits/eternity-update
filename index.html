@@ -256,6 +256,15 @@
         .btn-back-link { position: absolute; bottom: 30px; color: #ffffff; font-size: 18px; letter-spacing: 4px; cursor: pointer; text-transform: lowercase; background: none; border: none; }
         /* ใน overlay (เนื้อหายาวเลื่อนได้) ปุ่ม back ต้องไหลต่อท้ายเนื้อหา ไม่ลอยทับ (เดิม absolute แล้วจมกลางจอเวลาเมนูยาว) */
         .overlay .btn-back-link { position: static; margin-top: 20px; flex: 0 0 auto; }
+        /* แถวเช็คความพร้อม */
+        .sc-row { display: flex; align-items: center; gap: 12px; background: #111; border: 1px solid #333; border-radius: 12px; padding: 14px 16px; text-align: left; }
+        .sc-row.sc-fail { border-color: #a33; background: #1a1010; }
+        .sc-main { flex: 1; min-width: 0; }
+        .sc-label { color: #fff; font-weight: bold; font-size: 16px; }
+        .sc-detail { color: #999; font-size: 13px; margin-top: 2px; }
+        .sc-row.sc-fail .sc-detail { color: #ff9a9a; }
+        .sc-status { font-size: 24px; font-weight: bold; flex: 0 0 auto; color: #1dd1a1; }
+        .sc-row.sc-fail .sc-status { color: #ff6b6b; }
 
         /* เมนู Frame Edit 3 ช่อง (ช่องละสไตล์ — กรอบ 1 ภาพคลุมทั้งใบ) */
         .frame-grid-edit {
@@ -361,6 +370,7 @@
         <div class="overlay-subtitle">option</div>
         <div class="overlay-menu">
             <button class="btn-menu-new" id="btn-google-auth" onclick="window.Android.signInGoogle()">link<span>google drive</span></button>
+            <button class="btn-menu-new" onclick="toggleOverlay('overlay-syscheck', true)">system<span>check</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-frames', true)">frame<span>edit</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-price-edit', true)">price<span>edit</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-print-adjust', true)">print<span>adjust b&amp;w</span></button>
@@ -375,6 +385,70 @@
             <button class="btn-menu-new" onclick="showDeviceInfo()" style="font-size:16px; padding:15px;">device<span>license info</span></button>
         </div>
         <button class="btn-back-link" onclick="toggleOverlay('overlay-main', false)">back</button>
+    </div>
+
+    <!-- เช็คความพร้อมของตู้ (เน็ต/Drive/กล้อง/ปริ้น) — HTML ล้วน, ใช้ getSettings ที่มีอยู่แล้ว -->
+    <div id="overlay-syscheck" class="overlay">
+        <div class="boot-logo-text">receipt<span>photobooth</span></div>
+        <div class="overlay-subtitle">system check</div>
+        <div class="overlay-menu" style="gap:12px;">
+            <p style="color:#888; font-size:13px; margin:0; text-align:center; max-width:460px;">
+                กดเช็คก่อนเปิดร้านทุกวัน — จะได้รู้ทันทีว่าทุกอย่างพร้อมขาย (โดยเฉพาะ Google Drive ที่เซฟรูปลูกค้า)
+            </p>
+            <div id="syscheck-list" style="width:95%; max-width:460px; display:flex; flex-direction:column; gap:10px;"></div>
+            <button class="btn-menu-new" onclick="runSystemCheck()" style="margin-top:6px;">re-check<span>เช็คอีกครั้ง</span></button>
+        </div>
+        <button class="btn-back-link" onclick="toggleOverlay('overlay-syscheck', false)">back</button>
+    </div>
+
+    <!-- วิธีแก้ "แอปธนาคารไม่เด้งแจ้งเตือน" — ขั้นตอนใช้ได้ทุกเครื่อง + ปุ่มลัด (โชว์เฉพาะ APK ที่รองรับ) -->
+    <div id="overlay-notifhelp" class="overlay">
+        <div class="boot-logo-text">receipt<span>photobooth</span></div>
+        <div class="overlay-subtitle">แจ้งเตือนไม่เด้ง?</div>
+        <div class="overlay-menu" style="gap:14px;">
+            <p style="color:#888; font-size:13px; margin:0; text-align:center; max-width:520px;">
+                ถ้าโอนเงินแล้วตู้ไม่ข้ามหน้าให้ = แอปธนาคารบนตู้ไม่ได้ส่งแจ้งเตือนออกมา ทำตามนี้ทีละข้อ
+                <br><span style="color:#666; font-size:12px;">ระหว่างแก้ ให้เปิด "กล้องสแกนสลิป" ไว้ก่อน ลูกค้าจะยังจ่ายได้ปกติ</span>
+            </p>
+
+            <!-- ปุ่มลัดไปหน้าตั้งค่าแอปธนาคาร — โชว์เฉพาะ APK ที่มีบริดจ์ (เครื่องเก่าเห็นแค่ขั้นตอนด้านล่าง) -->
+            <div id="notifhelp-shortcuts" style="display:none; width:95%; max-width:500px;">
+                <label style="color:#888; font-size:12px; display:block; margin-bottom:8px;">ปุ่มลัด — กดแล้วเด้งไปหน้าตั้งค่าของแอปธนาคารเลย</label>
+                <div id="notifhelp-applist" style="display:flex; flex-direction:column; gap:8px;"></div>
+            </div>
+
+            <div style="width:95%; max-width:520px; display:flex; flex-direction:column; gap:10px; text-align:left;">
+                <div class="sc-row"><div class="sc-main">
+                    <div class="sc-label">1. แอปธนาคารยัง login อยู่ไหม</div>
+                    <div class="sc-detail">เปิดแอป K SHOP / แม่มณี ดูว่ายังไม่หลุด แล้ว<b style="color:#fff;">กด home ทิ้งไว้เบื้องหลัง อย่าปิดแอป</b></div>
+                </div></div>
+                <div class="sc-row"><div class="sc-main">
+                    <div class="sc-label">2. ปิดการประหยัดแบตของแอปธนาคาร</div>
+                    <div class="sc-detail">Settings → Apps → K SHOP → Battery → เลือก <b style="color:#fff;">Unrestricted / ไม่จำกัด</b> (ถ้าไม่ทำ ระบบจะฆ่าแอปทิ้งแล้วแจ้งเตือนไม่มา)</div>
+                </div></div>
+                <div class="sc-row"><div class="sc-main">
+                    <div class="sc-label">3. เปิดแจ้งเตือนของแอปธนาคาร</div>
+                    <div class="sc-detail">Settings → Apps → K SHOP → Notifications → เปิดให้ครบทุกหมวด + ในแอปธนาคารเองก็ต้องเปิด "แจ้งเตือนเงินเข้า"</div>
+                </div></div>
+                <div class="sc-row"><div class="sc-main">
+                    <div class="sc-label">4. มีใครเอามือถือ login บัญชีเดียวกันไหม</div>
+                    <div class="sc-detail">ถ้าเจ้าของร้าน login K SHOP บัญชีเดียวกันในมือถือตัวเอง <b style="color:#fff;">แจ้งเตือนจะย้ายไปเครื่องนั้น</b> ตู้จะเงียบทันที</div>
+                </div></div>
+                <div class="sc-row"><div class="sc-main">
+                    <div class="sc-label">5. เครื่องยี่ห้อจีน (Xiaomi/Oppo/Vivo/Huawei)</div>
+                    <div class="sc-detail">ต้องเปิด <b style="color:#fff;">Autostart / เริ่มทำงานอัตโนมัติ</b> ให้แอปธนาคารด้วย ไม่งั้นถูกฆ่าอยู่ดี</div>
+                </div></div>
+                <div class="sc-row"><div class="sc-main">
+                    <div class="sc-label">6. เวลาเครื่อง + พื้นที่เครื่อง</div>
+                    <div class="sc-detail">ตั้งวันที่/เวลาเป็นอัตโนมัติ (เวลาผิด = แจ้งเตือนไม่มา) และเช็คว่าพื้นที่เครื่องเหลือเกิน 1GB</div>
+                </div></div>
+                <div class="sc-row"><div class="sc-main">
+                    <div class="sc-label">7. ทดสอบ</div>
+                    <div class="sc-detail">โอนจริง 1 บาท → กด "ดูแจ้งเตือนล่าสุด" ถ้ายังว่าง = แอปธนาคารยังไม่ส่งอะไรมา ให้ย้อนทำข้อ 2-5 ใหม่</div>
+                </div></div>
+            </div>
+        </div>
+        <button class="btn-back-link" onclick="toggleOverlay('overlay-notifhelp', false)">back</button>
     </div>
 
     <!-- STICKER MANAGER (เพิ่ม/ลบ สติ๊กเกอร์ + ตั้งเวลาหน้าตกแต่ง) -->
@@ -538,6 +612,7 @@
                 </div>
                 <button onclick="testMoneyIn()" style="width:100%; margin-top:12px; padding:12px; border-radius:12px; border:1px solid #555; background:transparent; color:#aaa; font-size:14px; cursor:pointer;">ทดสอบเงินเข้า (ยิงแจ้งเตือนปลอมใน 6 วิ)</button>
                 <button onclick="showBankNotifLog()" style="width:100%; margin-top:8px; padding:12px; border-radius:12px; border:1px solid #555; background:transparent; color:#aaa; font-size:14px; cursor:pointer;">ดูแจ้งเตือนล่าสุด (แก้ปัญหา)</button>
+                <button onclick="toggleOverlay('overlay-notifhelp', true)" style="width:100%; margin-top:8px; padding:12px; border-radius:12px; border:1px solid #fff; background:transparent; color:#fff; font-size:14px; font-weight:bold; cursor:pointer;">แจ้งเตือนไม่เด้ง? — วิธีแก้</button>
             </div>
 
             <!-- โหมด QR รับรูป + ข้อความรูปหมดอายุ — เซฟทันทีที่กด (เก็บในเครื่องแบบ HTML ล้วน) -->
@@ -1158,6 +1233,8 @@
             if (id === 'overlay-page-timeout' && active) loadPageTimeoutPanel();
             if (id === 'overlay-stickers' && active) openStickerManager();
             if (id === 'overlay-main' && active) refreshVersionLabel();
+            if (id === 'overlay-syscheck' && active) runSystemCheck();
+            if (id === 'overlay-notifhelp' && active) renderNotifHelp();
         }
 
         // ===== Fisheye setting (ปรับความโป่ง/ซูม) =====
@@ -1560,6 +1637,85 @@
             startSystem('kiosk');
         }
 
+        // ===== เช็คความพร้อมของตู้ (เน็ต/Drive/กล้อง/ปริ้น) — HTML ล้วน =====
+        function scGetSettings() { try { return JSON.parse(window.Android.getSettings()); } catch (e) { return null; } }
+        function checkInternet() {
+            return new Promise(resolve => {
+                if (navigator.onLine === false) { resolve({ ok: false, detail: 'ไม่ได้ต่อเน็ต — เช็ค WiFi ของตู้' }); return; }
+                const img = new Image(); let done = false;
+                const t = setTimeout(() => { if (!done) { done = true; resolve({ ok: false, detail: 'ต่อเน็ตไม่ได้ (หมดเวลา) — เช็ค WiFi ของตู้' }); } }, 6000);
+                img.onload = () => { if (!done) { done = true; clearTimeout(t); resolve({ ok: true, detail: 'เชื่อมต่ออินเทอร์เน็ตได้' }); } };
+                img.onerror = () => { if (!done) { done = true; clearTimeout(t); resolve({ ok: false, detail: 'ต่อเน็ตไม่ได้ — เช็ค WiFi ของตู้' }); } };
+                img.src = 'https://www.google.com/favicon.ico?_=' + Date.now();
+            });
+        }
+        function checkDrive() {
+            return new Promise(resolve => {
+                const s = scGetSettings();
+                if (!s) { resolve({ ok: false, detail: 'เช็คได้เฉพาะบนตู้จริง' }); return; }
+                if (s.google_signed_in) resolve({ ok: true, detail: 'เชื่อมอยู่ — รูปลูกค้าจะเซฟขึ้น Drive' });
+                else resolve({ ok: false, detail: 'ยังไม่ได้เชื่อม! กลับไปเมนู option → กด link google drive' });
+            });
+        }
+        function checkCamera() {
+            return new Promise(resolve => {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { resolve({ ok: false, detail: 'อุปกรณ์ไม่รองรับกล้อง' }); return; }
+                navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+                    stream.getTracks().forEach(t => t.stop());
+                    resolve({ ok: true, detail: 'กล้องพร้อมใช้งาน' });
+                }).catch(() => resolve({ ok: false, detail: 'เปิดกล้องไม่ได้ — เช็คสายกล้อง/สิทธิ์กล้อง' }));
+            });
+        }
+        function checkPrinter() {
+            return new Promise(resolve => {
+                const s = scGetSettings();
+                if (!s) { resolve({ ok: false, detail: 'เช็คได้เฉพาะบนตู้จริง' }); return; }
+                const type = s.printer_type || '';
+                const name = s.bt_printer_name || s.wifi_printer_ip || type;
+                if (type && type !== 'none') resolve({ ok: true, detail: 'ตั้งค่าไว้: ' + name + ' (เช็คต่อจริงต้องลองปริ้น 1 ใบ)' });
+                else resolve({ ok: false, detail: 'ยังไม่ได้ตั้งเครื่องปริ้น — เมนู option → printer setup' });
+            });
+        }
+        // เช็คสุขภาพระบบเงินเข้าอัตโนมัติ — โชว์เฉพาะตู้ที่ใช้ระบบนี้ (APK v1.25+)
+        function checkMoneyIn() {
+            return new Promise(resolve => {
+                if (!(window.Android && typeof window.Android.isNotifAccessGranted === 'function')) { resolve({ ok: false, detail: 'เช็คได้เฉพาะบนตู้จริง' }); return; }
+                if (!window.Android.isNotifAccessGranted()) { resolve({ ok: false, detail: 'ยังไม่เปิดสิทธิ์อ่านแจ้งเตือน — qr code edit → เปิดสิทธิ์' }); return; }
+                const info = lastMoneyInInfo();
+                if (!info) { resolve({ ok: false, detail: 'ยังไม่เคยเห็นแจ้งเตือนเงินเข้าเลย — เช็คแอปธนาคารบนตู้ (ปุ่ม "แจ้งเตือนไม่เด้ง?")' }); return; }
+                if (info.days >= 7) { resolve({ ok: false, detail: `ไม่เห็นแจ้งเตือนเงินเข้ามา ${info.days} วันแล้ว (ล่าสุด ${info.when})` }); return; }
+                resolve({ ok: true, detail: 'เห็นเงินเข้าล่าสุด ' + info.when });
+            });
+        }
+        const SYS_CHECKS = [
+            { id: 'net', label: 'อินเทอร์เน็ต', run: checkInternet },
+            { id: 'drive', label: 'Google Drive (เซฟรูป)', run: checkDrive },
+            { id: 'cam', label: 'กล้อง', run: checkCamera },
+            { id: 'printer', label: 'เครื่องปริ้น', run: checkPrinter },
+            // โชว์แถวนี้เฉพาะตู้ที่เปิดสิทธิ์อ่านแจ้งเตือนไว้แล้ว (ใช้ระบบเงินเข้าจริง) — ตู้อื่นไม่ต้องรก
+            { id: 'moneyin', label: 'แจ้งเตือนเงินเข้า (ธนาคาร)', run: checkMoneyIn,
+              when: () => { try { return !!(window.Android && window.Android.isNotifAccessGranted && window.Android.isNotifAccessGranted()); } catch (e) { return false; } } },
+        ];
+        function runSystemCheck() {
+            const box = document.getElementById('syscheck-list');
+            if (!box) return;
+            const list = SYS_CHECKS.filter(c => !c.when || c.when());   // บางแถวโชว์เฉพาะตู้ที่ใช้ระบบนั้น
+            box.innerHTML = list.map(c => `<div class="sc-row" id="sc-${c.id}">
+                <div class="sc-main"><div class="sc-label">${c.label}</div><div class="sc-detail" id="sc-detail-${c.id}">กำลังเช็ค...</div></div>
+                <span class="sc-status" id="sc-status-${c.id}">…</span>
+            </div>`).join('');
+            list.forEach(c => {
+                Promise.resolve().then(() => c.run()).catch(() => ({ ok: false, detail: 'เช็คไม่ได้' })).then(r => {
+                    const st = document.getElementById('sc-status-' + c.id);
+                    const dt = document.getElementById('sc-detail-' + c.id);
+                    const row = document.getElementById('sc-' + c.id);
+                    if (st) st.textContent = r.ok ? '✓' : '✗';
+                    if (dt) dt.textContent = r.detail;
+                    if (row) row.classList.toggle('sc-fail', !r.ok);
+                });
+            });
+        }
+
         window.onKioskAuthResult = function(data) {
             if (typeof data === 'string') data = JSON.parse(data);
             if (data.success) {
@@ -1752,6 +1908,15 @@
         function logBankNotif(pkg, title, text, amt) {
             bankNotifLog.unshift({ t: new Date().toLocaleTimeString('th-TH'), pkg: pkg || '', title: title || '', text: text || '', amt });
             if (bankNotifLog.length > 8) bankNotifLog.length = 8;
+            // จำเวลาที่ "เห็นเงินเข้าจริง" ล่าสุด (ข้ามรีสตาร์ตแอป) — ใช้เตือนในหน้า system check ว่าระบบเงียบผิดปกติ
+            if (amt != null) { try { localStorage.setItem('lastMoneyInTs', String(Date.now())); localStorage.setItem('lastMoneyInPkg', pkg || ''); } catch (e) {} }
+        }
+        function lastMoneyInInfo() {
+            try {
+                const ts = parseInt(localStorage.getItem('lastMoneyInTs'), 10);
+                if (isNaN(ts)) return null;
+                return { ts, days: Math.floor((Date.now() - ts) / 86400000), when: new Date(ts).toLocaleString('th-TH') };
+            } catch (e) { return null; }
         }
         function showBankNotifLog() {
             if (!bankNotifLog.length) { alert('ยังไม่เห็นแจ้งเตือนอะไรเข้ามาเลย\n\nเช็ค: เปิดสิทธิ์ Notification access หรือยัง? แอปธนาคารเปิด notifications อยู่ไหม? (บางแอปโชว์ในแอปเฉยๆ ไม่ขึ้นแจ้งเตือนจริงถ้าเปิดแอปค้างอยู่ — ลองย่อแอปธนาคารไว้เบื้องหลังก่อนโอน)'); return; }
@@ -1818,6 +1983,21 @@
             if (tg) { tg.innerText = slipScanEnabled() ? 'เปิด' : 'ปิด'; tg.style.borderColor = slipScanEnabled() ? '#fff' : '#555'; tg.style.color = slipScanEnabled() ? '#fff' : '#888'; }
             const fields = document.getElementById('slipok-fields');
             if (fields) fields.style.display = slipScanEnabled() ? 'flex' : 'none';   // ปิดสแกนสลิป = ซ่อนช่องกรอก SlipOK ไปด้วย
+        }
+
+        function renderNotifHelp() {
+            const box = document.getElementById('notifhelp-shortcuts');
+            const list = document.getElementById('notifhelp-applist');
+            if (!box || !list) return;
+            let apps = [];
+            try { if (window.Android && window.Android.listBankApps) apps = JSON.parse(window.Android.listBankApps() || '[]'); } catch (e) { apps = []; }
+            if (!apps.length) { box.style.display = 'none'; return; }
+            box.style.display = 'block';
+            list.innerHTML = apps.map(a => `<div style="display:flex; gap:8px; align-items:center;">
+                <span style="flex:1; color:#fff; font-size:15px; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.label}</span>
+                <button onclick="window.Android.openAppSettings('${a.pkg}')" style="padding:10px 14px; border-radius:10px; border:1px solid #fff; background:transparent; color:#fff; font-size:13px; font-weight:bold; cursor:pointer;">แบตเตอรี่</button>
+                <button onclick="window.Android.openAppNotifSettings('${a.pkg}')" style="padding:10px 14px; border-radius:10px; border:1px solid #fff; background:transparent; color:#fff; font-size:13px; font-weight:bold; cursor:pointer;">แจ้งเตือน</button>
+            </div>`).join('');
         }
 
         // UI ตั้งค่า "เงินเข้าอัตโนมัติ" — โชว์เฉพาะเมื่อ APK รองรับ (v1.25+), APK เก่าจะซ่อนทั้งกล่อง
