@@ -264,6 +264,11 @@
         .sc-detail { color: #999; font-size: 13px; margin-top: 2px; }
         .sc-row.sc-fail .sc-detail { color: #ff9a9a; }
         .sc-status { font-size: 24px; font-weight: bold; flex: 0 0 auto; color: #1dd1a1; }
+        /* ขั้นตอนในหน้า "แจ้งเตือนไม่เด้ง" — กดได้ทุกข้อ */
+        .nh-step { cursor: pointer; }
+        .nh-step:active { background: #1c1c1c; transform: scale(0.99); }
+        .nh-hint { color: #1dd1a1; font-size: 12px; margin-top: 6px; font-weight: bold; }
+        .nh-arrow { color: #666; font-size: 30px; flex: 0 0 auto; line-height: 1; }
         .sc-row.sc-fail .sc-status { color: #ff6b6b; }
 
         /* เมนู Frame Edit 3 ช่อง (ช่องละสไตล์ — กรอบ 1 ภาพคลุมทั้งใบ) */
@@ -418,26 +423,46 @@
             </div>
 
             <div style="width:95%; max-width:520px; display:flex; flex-direction:column; gap:10px; text-align:left;">
-                <div class="sc-row"><div class="sc-main">
-                    <div class="sc-label">1. แอปธนาคารยัง login อยู่ไหม</div>
-                    <div class="sc-detail">เปิดแอป K SHOP / แม่มณี ดูว่ายังไม่หลุด แล้ว<b style="color:#fff;">กด home ทิ้งไว้เบื้องหลัง อย่าปิดแอป</b></div>
-                </div></div>
-                <div class="sc-row"><div class="sc-main">
-                    <div class="sc-label">2. ปิดการประหยัดแบตของแอปธนาคาร</div>
-                    <div class="sc-detail">Settings → Apps → K SHOP → Battery → เลือก <b style="color:#fff;">Unrestricted / ไม่จำกัด</b> (ถ้าไม่ทำ ระบบจะฆ่าแอปทิ้งแล้วแจ้งเตือนไม่มา)</div>
-                </div></div>
-                <div class="sc-row"><div class="sc-main">
-                    <div class="sc-label">3. เปิดแจ้งเตือนของแอปธนาคาร</div>
-                    <div class="sc-detail">Settings → Apps → K SHOP → Notifications → เปิดให้ครบทุกหมวด + ในแอปธนาคารเองก็ต้องเปิด "แจ้งเตือนเงินเข้า"</div>
-                </div></div>
-                <div class="sc-row"><div class="sc-main">
-                    <div class="sc-label">4. มีใครเอามือถือ login บัญชีเดียวกันไหม</div>
-                    <div class="sc-detail">ถ้าเจ้าของร้าน login K SHOP บัญชีเดียวกันในมือถือตัวเอง <b style="color:#fff;">แจ้งเตือนจะย้ายไปเครื่องนั้น</b> ตู้จะเงียบทันที</div>
-                </div></div>
-                <div class="sc-row"><div class="sc-main">
-                    <div class="sc-label">5. ทดสอบ</div>
-                    <div class="sc-detail">โอนจริง 1 บาท → กด "ดูแจ้งเตือนล่าสุด" ถ้ายังว่าง = แอปธนาคารยังไม่ส่งอะไรมา ให้ย้อนทำข้อ 2-5 ใหม่</div>
-                </div></div>
+                <div class="sc-row nh-step" onclick="notifStep(1)">
+                    <div class="sc-main">
+                        <div class="sc-label">1. แอปธนาคารยัง login อยู่ไหม</div>
+                        <div class="sc-detail">เปิดแอป K SHOP / แม่มณี ดูว่ายังไม่หลุด แล้ว<b style="color:#fff;">กด home ทิ้งไว้เบื้องหลัง อย่าปิดแอป</b></div>
+                        <div class="nh-hint">แตะเพื่อดูวิธี</div>
+                    </div>
+                    <span class="nh-arrow">›</span>
+                </div>
+                <div class="sc-row nh-step" onclick="notifStep(2)">
+                    <div class="sc-main">
+                        <div class="sc-label">2. ปิดการประหยัดแบตของแอปธนาคาร</div>
+                        <div class="sc-detail">ถ้าไม่ทำ ระบบจะฆ่าแอปทิ้ง แล้วแจ้งเตือนจะไม่มา</div>
+                        <div class="nh-hint">แตะเพื่อเปิดหน้าตั้งค่า</div>
+                    </div>
+                    <span class="nh-arrow">›</span>
+                </div>
+                <div class="sc-row nh-step" onclick="notifStep(3)">
+                    <div class="sc-main">
+                        <div class="sc-label">3. เปิดแจ้งเตือนของแอปธนาคาร</div>
+                        <div class="sc-detail">ต้องเปิดทั้งใน Settings ของเครื่อง และในแอปธนาคารเอง</div>
+                        <div class="nh-hint">แตะเพื่อเปิดหน้าตั้งค่า</div>
+                    </div>
+                    <span class="nh-arrow">›</span>
+                </div>
+                <div class="sc-row nh-step" onclick="notifStep(4)">
+                    <div class="sc-main">
+                        <div class="sc-label">4. มีใครเอามือถือ login บัญชีเดียวกันไหม</div>
+                        <div class="sc-detail">ถ้าเจ้าของร้าน login K SHOP บัญชีเดียวกันในมือถือตัวเอง <b style="color:#fff;">แจ้งเตือนจะย้ายไปเครื่องนั้น</b> ตู้จะเงียบทันที</div>
+                        <div class="nh-hint">แตะเพื่อดูวิธีเช็ค</div>
+                    </div>
+                    <span class="nh-arrow">›</span>
+                </div>
+                <div class="sc-row nh-step" onclick="notifStep(5)">
+                    <div class="sc-main">
+                        <div class="sc-label">5. ทดสอบว่าแก้ได้แล้วหรือยัง</div>
+                        <div class="sc-detail">โอนจริง 1 บาท แล้วดูว่าตู้เห็นแจ้งเตือนไหม</div>
+                        <div class="nh-hint">แตะเพื่อดูแจ้งเตือนล่าสุด</div>
+                    </div>
+                    <span class="nh-arrow">›</span>
+                </div>
             </div>
         </div>
         <button class="btn-back-link" onclick="toggleOverlay('overlay-notifhelp', false)">back</button>
@@ -1990,6 +2015,40 @@
                 <button onclick="window.Android.openAppSettings('${a.pkg}')" style="padding:10px 14px; border-radius:10px; border:1px solid #fff; background:transparent; color:#fff; font-size:13px; font-weight:bold; cursor:pointer;">แบตเตอรี่</button>
                 <button onclick="window.Android.openAppNotifSettings('${a.pkg}')" style="padding:10px 14px; border-radius:10px; border:1px solid #fff; background:transparent; color:#fff; font-size:13px; font-weight:bold; cursor:pointer;">แจ้งเตือน</button>
             </div>`).join('');
+        }
+
+        // แตะที่ขั้นตอนในหน้า "แจ้งเตือนไม่เด้ง" — ถ้าแอปรองรับจะเด้งไปหน้าตั้งค่าให้เลย
+        // ถ้ายังไม่รองรับ (ตู้ที่ยังไม่อัพแอป) ก็บอกทางเดินให้ครบ จะได้ทำตามได้ทันที
+        function firstBankApp() {
+            try {
+                if (window.Android && window.Android.listBankApps) {
+                    const a = JSON.parse(window.Android.listBankApps() || '[]');
+                    if (a.length) return a[0];
+                }
+            } catch (e) {}
+            return null;
+        }
+        function notifStep(n) {
+            const app = firstBankApp();
+            if (n === 1) {
+                alert('1) เช็คว่าแอปธนาคารยัง login อยู่\n\n• เปิดแอป K SHOP / แม่มณี ดูว่าไม่ได้เด้งออก\n• ถ้าหลุด ให้ login ใหม่\n• เสร็จแล้วกดปุ่ม home ทิ้งไว้ — อย่าปิดแอป (ปัดออกจากรายการแอป)');
+                return;
+            }
+            if (n === 2) {
+                if (app && window.Android.openAppSettings) { window.Android.openAppSettings(app.pkg); return; }
+                alert('2) ปิดการประหยัดแบตของแอปธนาคาร\n\nไปที่: Settings (ตั้งค่า) → Apps (แอป) → เลือกแอปธนาคาร เช่น K SHOP → Battery (แบตเตอรี่) → เลือก "Unrestricted / ไม่จำกัด"\n\nถ้าไม่ทำ ระบบจะฆ่าแอปธนาคารทิ้งเอง แล้วแจ้งเตือนจะไม่มา');
+                return;
+            }
+            if (n === 3) {
+                if (app && window.Android.openAppNotifSettings) { window.Android.openAppNotifSettings(app.pkg); return; }
+                alert('3) เปิดแจ้งเตือนของแอปธนาคาร\n\nไปที่: Settings (ตั้งค่า) → Apps (แอป) → เลือกแอปธนาคาร → Notifications (การแจ้งเตือน) → เปิดให้ครบทุกหมวด\n\nแล้วเปิดในแอปธนาคารเองด้วย: เมนูตั้งค่าในแอป → เปิด "แจ้งเตือนเงินเข้า"');
+                return;
+            }
+            if (n === 4) {
+                alert('4) เช็คว่ามีใครเอามือถือ login บัญชีเดียวกันไหม\n\nถ้าเจ้าของร้าน login แอปธนาคารบัญชีเดียวกันในมือถือตัวเอง แจ้งเตือนจะย้ายไปเข้ามือถือเครื่องนั้นแทน ตู้จะเงียบทันที\n\nวิธีแก้: ออกจากระบบ (logout) ในมือถือส่วนตัว แล้ว login ใหม่เฉพาะที่ตู้');
+                return;
+            }
+            if (n === 5) { showBankNotifLog(); return; }
         }
 
         // UI ตั้งค่า "เงินเข้าอัตโนมัติ" — โชว์เฉพาะเมื่อ APK รองรับ (v1.25+), APK เก่าจะซ่อนทั้งกล่อง
