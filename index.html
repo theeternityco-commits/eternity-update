@@ -1704,8 +1704,37 @@
                 resolve({ ok: true, detail: 'เห็นเงินเข้าล่าสุด ' + info.when });
             });
         }
+        // พื้นที่เครื่องเต็ม = อัป Drive ไม่ขึ้น / แอปธนาคารเพี้ยน — เช็คไว้กันปัญหาเงียบๆ
+        function checkStorage() {
+            return new Promise(resolve => {
+                if (!(window.Android && window.Android.getDeviceStorageInfo)) { resolve({ ok: true, detail: 'ข้ามการเช็ค (แอปเวอร์ชันเก่า)' }); return; }
+                let s = null;
+                try { s = JSON.parse(window.Android.getDeviceStorageInfo() || '{}'); } catch (e) {}
+                if (!s || !s.ok) { resolve({ ok: false, detail: 'เช็คพื้นที่เครื่องไม่ได้' }); return; }
+                const freeGB = (s.freeMB / 1024).toFixed(1);
+                if (s.freeMB < 500) { resolve({ ok: false, detail: `เหลือ ${freeGB} GB — เต็มมาก! ลบไฟล์/ล้างแคชด่วน` }); return; }
+                if (s.freeMB < 1500) { resolve({ ok: false, detail: `เหลือ ${freeGB} GB — ใกล้เต็ม ควรล้างแคชแอปต่างๆ` }); return; }
+                resolve({ ok: true, detail: `เหลือ ${freeGB} GB จาก ${(s.totalMB / 1024).toFixed(0)} GB` });
+            });
+        }
+        // ล้างแคชแอปเราเองทุกครั้งที่กด system check แล้วรายงานว่าคืนพื้นที่ได้เท่าไหร่
+        // (แคชแอปเราบวม → พื้นที่เครื่องเต็ม → อัป Drive ไม่ขึ้น + แอปธนาคารเพี้ยน)
+        let lastCacheClear = null;
+        function checkCacheClear() {
+            return new Promise(resolve => {
+                if (!(window.Android && window.Android.clearAppCache)) { resolve({ ok: true, detail: 'ข้ามการล้าง (แอปเวอร์ชันเก่า)' }); return; }
+                if (!lastCacheClear || !lastCacheClear.ok) { resolve({ ok: false, detail: 'ล้างแคชไม่สำเร็จ' }); return; }
+                const mb = lastCacheClear.freedMB || 0, kb = lastCacheClear.freedKB || 0;
+                resolve({ ok: true, detail: kb < 512 ? 'สะอาดอยู่แล้ว ไม่มีอะไรต้องล้าง' : ('ล้างแล้ว — คืนพื้นที่ ' + (mb >= 1 ? mb + ' MB' : kb + ' KB')) });
+            });
+        }
         const SYS_CHECKS = [
             { id: 'net', label: 'อินเทอร์เน็ต', run: checkInternet },
+            // 2 แถวนี้ต้องใช้บริดจ์ฝั่งแอป — ตู้ที่ยังไม่อัพ APK จะไม่เห็นเลย (ไม่ขึ้นข้อความชวนงง)
+            { id: 'storage', label: 'พื้นที่เครื่อง', run: checkStorage,
+              when: () => !!(window.Android && window.Android.getDeviceStorageInfo) },
+            { id: 'cache', label: 'ล้างแคชแอป (อัตโนมัติ)', run: checkCacheClear,
+              when: () => !!(window.Android && window.Android.clearAppCache) },
             { id: 'drive', label: 'Google Drive (เซฟรูป)', run: checkDrive },
             { id: 'cam', label: 'กล้อง', run: checkCamera },
             { id: 'printer', label: 'เครื่องปริ้น', run: checkPrinter },
@@ -1716,6 +1745,9 @@
         function runSystemCheck() {
             const box = document.getElementById('syscheck-list');
             if (!box) return;
+            // ล้างแคชแอปเราก่อนเลย แล้วค่อยเช็ค — ตัวเลข "พื้นที่เครื่อง" จะได้เป็นค่าหลังล้างจริง
+            lastCacheClear = null;
+            try { if (window.Android && window.Android.clearAppCache) lastCacheClear = JSON.parse(window.Android.clearAppCache() || '{}'); } catch (e) {}
             const list = SYS_CHECKS.filter(c => !c.when || c.when());   // บางแถวโชว์เฉพาะตู้ที่ใช้ระบบนั้น
             box.innerHTML = list.map(c => `<div class="sc-row" id="sc-${c.id}">
                 <div class="sc-main"><div class="sc-label">${c.label}</div><div class="sc-detail" id="sc-detail-${c.id}">กำลังเช็ค...</div></div>
@@ -2002,6 +2034,7 @@
             if (fields) fields.style.display = slipScanEnabled() ? 'flex' : 'none';   // ปิดสแกนสลิป = ซ่อนช่องกรอก SlipOK ไปด้วย
         }
 
+        // หน้า "แจ้งเตือนไม่เด้ง? — วิธีแก้": ขั้นตอนโชว์ได้ทุกเครื่อง ส่วนปุ่มลัดโชว์เฉพาะ APK ที่มีบริดจ์ listBankApps
         function renderNotifHelp() {
             const box = document.getElementById('notifhelp-shortcuts');
             const list = document.getElementById('notifhelp-applist');
@@ -2010,13 +2043,33 @@
             try { if (window.Android && window.Android.listBankApps) apps = JSON.parse(window.Android.listBankApps() || '[]'); } catch (e) { apps = []; }
             if (!apps.length) { box.style.display = 'none'; return; }
             box.style.display = 'block';
-            list.innerHTML = apps.map(a => `<div style="display:flex; gap:8px; align-items:center;">
-                <span style="flex:1; color:#fff; font-size:15px; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.label}</span>
-                <button onclick="window.Android.openAppSettings('${a.pkg}')" style="padding:10px 14px; border-radius:10px; border:1px solid #fff; background:transparent; color:#fff; font-size:13px; font-weight:bold; cursor:pointer;">แบตเตอรี่</button>
-                <button onclick="window.Android.openAppNotifSettings('${a.pkg}')" style="padding:10px 14px; border-radius:10px; border:1px solid #fff; background:transparent; color:#fff; font-size:13px; font-weight:bold; cursor:pointer;">แจ้งเตือน</button>
-            </div>`).join('');
+            const canSeeCache = !!(window.Android && window.Android.hasUsageAccess && window.Android.hasUsageAccess());
+            list.innerHTML = apps.map(a => {
+                let cacheLine = '';
+                if (canSeeCache) {
+                    let s = null;
+                    try { s = JSON.parse(window.Android.getAppStorageInfo(a.pkg) || '{}'); } catch (e) {}
+                    if (s && s.ok) {
+                        const big = s.cacheMB >= CACHE_WARN_MB;
+                        cacheLine = `<div style="font-size:12px; margin-top:3px; color:${big ? '#ff9a9a' : '#777'};">
+                            แคช ${s.cacheMB} MB${big ? ' — บวมผิดปกติ ควรล้าง' : ' (ปกติ)'} · ข้อมูลรวม ${s.dataMB} MB</div>`;
+                    }
+                }
+                return `<div class="sc-row" style="flex-direction:column; align-items:stretch; gap:8px;">
+                    <div>
+                        <div class="sc-label">${a.label}</div>
+                        ${cacheLine}
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        <button onclick="window.Android.openAppSettings('${a.pkg}')" style="flex:1; padding:10px 8px; border-radius:10px; border:1px solid #fff; background:transparent; color:#fff; font-size:13px; font-weight:bold; cursor:pointer;">แบตเตอรี่</button>
+                        <button onclick="window.Android.openAppNotifSettings('${a.pkg}')" style="flex:1; padding:10px 8px; border-radius:10px; border:1px solid #fff; background:transparent; color:#fff; font-size:13px; font-weight:bold; cursor:pointer;">แจ้งเตือน</button>
+                        <button onclick="goClearCache('${a.pkg}')" style="flex:1; padding:10px 8px; border-radius:10px; border:1px solid #fff; background:transparent; color:#fff; font-size:13px; font-weight:bold; cursor:pointer;">ล้างแคช</button>
+                    </div>
+                </div>`;
+            }).join('');
+            // ไม่ขอสิทธิ์อะไรกับลูกค้า — ถ้าไม่ได้เปิด Usage access ไว้ ก็แค่ไม่โชว์ตัวเลขแคช เงียบๆ
+            // (ถ้าอยากเห็นตัวเลข ให้คนติดตั้งตู้เปิดสิทธิ์ให้ตอนเซ็ตอัพ ลูกค้าไม่ต้องยุ่ง)
         }
-
         // แตะที่ขั้นตอนในหน้า "แจ้งเตือนไม่เด้ง" — ถ้าแอปรองรับจะเด้งไปหน้าตั้งค่าให้เลย
         // ถ้ายังไม่รองรับ (ตู้ที่ยังไม่อัพแอป) ก็บอกทางเดินให้ครบ จะได้ทำตามได้ทันที
         function firstBankApp() {
@@ -2049,6 +2102,12 @@
                 return;
             }
             if (n === 5) { showBankNotifLog(); return; }
+        }
+        const CACHE_WARN_MB = 200;   // แคชเกินเท่านี้ = เตือนให้ล้าง
+        // Android ไม่ให้แอปทั่วไปล้างแคชของแอปอื่น — พาไปหน้าตั้งค่าของแอปนั้นแล้วบอกวิธีกด
+        function goClearCache(pkg) {
+            alert('Android ไม่อนุญาตให้แอปอื่นล้างแคชแทนได้ค่ะ\n\nกด OK แล้วจะพาไปหน้าตั้งค่าของแอปนี้ → เลือก "พื้นที่จัดเก็บ / Storage" → กด "ล้างแคช / Clear cache"\n\n⚠️ ห้ามกด "ล้างข้อมูล / Clear data" เด็ดขาด — จะหลุด login');
+            try { window.Android.openAppSettings(pkg); } catch (e) {}
         }
 
         // UI ตั้งค่า "เงินเข้าอัตโนมัติ" — โชว์เฉพาะเมื่อ APK รองรับ (v1.25+), APK เก่าจะซ่อนทั้งกล่อง
