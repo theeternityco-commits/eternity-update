@@ -3464,10 +3464,10 @@
             if (againBtn && systemMode !== 'event' && remainingQuota > 0) {
                 againBtn.style.display = 'block';
                 againBtn.innerText = `ถ่ายเพิ่ม (เหลือ ${remainingQuota} รูป)`;
-                startPrintAutoHome(30);   // ให้เวลามากหน่อย เผื่อลูกค้าจะถ่ายเพิ่ม
+                startPrintAutoHome(pageTimeoutSeconds);   // ตามตั้งค่า "เวลารอแต่ละหน้า" (ขวาสุด = ไม่จำกัด)
             } else {
                 if (againBtn) againBtn.style.display = 'none';
-                startPrintAutoHome(15);
+                startPrintAutoHome(pageTimeoutSeconds);
             }
         }
 
@@ -3484,6 +3484,7 @@
         let printHomeTimer = null;
         function startPrintAutoHome(sec) {
             clearPrintAutoHome();
+            if (!sec) return;   // ไม่จำกัดเวลา — โชว์ QR ค้างไว้จนลูกค้ากด done เอง
             let remaining = sec;
             const el = document.getElementById('print-countdown');
             el.innerText = `กลับสู่หน้าหลักอัตโนมัติใน ${remaining} วินาที`;
