@@ -3269,10 +3269,11 @@
                 reviewPage.classList.remove('show-quota');
                 renderCopies();
             } else {
-                // kiosk: เลือกจำนวนพิมพ์รอบนี้ได้ไม่เกินโควต้าที่เหลือ (ดีฟอลต์ = พิมพ์ที่เหลือทั้งหมด)
+                // kiosk: เลือกจำนวนพิมพ์รอบนี้ได้ไม่เกินโควต้าที่เหลือ
+                // ดีฟอลต์ = 1 รูปเสมอ (ลูกค้ากดเพิ่มเองถ้าอยากพิมพ์รวดเดียวหลายรูป — กันเผลอกด PRINT แล้วโควต้าหมดทันที)
                 reviewPage.classList.remove('show-copies');
                 reviewPage.classList.add('show-quota');
-                printQuantity = remainingQuota > 0 ? remainingQuota : 1;
+                printQuantity = 1;
                 renderQuota();
             }
             // retake ได้ครั้งเดียวต่อรอบ — ถ้าใช้ไปแล้วซ่อนปุ่ม RETAKE เหลือแต่ PRINT (สงสารคนรอ)
