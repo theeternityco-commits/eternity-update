@@ -1952,6 +1952,32 @@
             const v = parseFloat(m[1].replace(/,/g, ''));
             return isNaN(v) ? null : v;
         }
+        // ดึงยอดเงินทุกตัวในข้อความเดียว (ใช้คู่กับ newestMoneyLines ที่คัดเฉพาะบรรทัดใหม่มาแล้ว)
+        function parseMoneyInAll(text) {
+            const t = String(text || '').replace(/ /g, ' ');
+            if (!MONEY_IN_WORDS.some(w => t.toLowerCase().includes(w.toLowerCase()))) return [];
+            const out = [];
+            const re1 = /([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:บาท|บ\.|thb|฿)/gi;
+            const re2 = /(?:฿|thb)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/gi;
+            let m;
+            while ((m = re1.exec(t)) !== null) { const v = parseFloat(m[1].replace(/,/g, '')); if (!isNaN(v)) out.push(v); }
+            while ((m = re2.exec(t)) !== null) { const v = parseFloat(m[1].replace(/,/g, '')); if (!isNaN(v)) out.push(v); }
+            return [...new Set(out)];
+        }
+        // แอนดรอยด์ยุบแจ้งเตือนหลายรายการเป็นก้อนเดียวได้ (เห็นเป็น 2⌄ บนแถบแจ้งเตือน)
+        // ก้อนนั้นมีทั้งรายการเก่าและใหม่ปนกัน — ถ้าเอาทุกยอดไปเทียบราคา ยอดเก่าของลูกค้าคนก่อน
+        // อาจไปยืนยันให้ลูกค้าคนใหม่ฟรีๆ ได้ จึงต้องคัดเฉพาะ 'บรรทัดที่เพิ่งโผล่เข้ามาใหม่' เท่านั้น
+        let _notifPrevLines = {};   // แอป -> จำนวนของแต่ละบรรทัดในก้อนก่อนหน้า
+        function newestMoneyLines(pkg, text) {
+            const lines = String(text || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+            if (lines.length <= 1) { _notifPrevLines[pkg] = null; return lines; }   // บรรทัดเดียว = ของใหม่แน่นอน
+            const count = arr => { const o = {}; arr.forEach(l => { o[l] = (o[l] || 0) + 1; }); return o; };
+            const cur = count(lines), prev = _notifPrevLines[pkg] || {};
+            const added = [];
+            for (const l in cur) { const n = cur[l] - (prev[l] || 0); for (let i = 0; i < n; i++) added.push(l); }
+            _notifPrevLines[pkg] = cur;
+            return added.length ? added : lines.slice(0, 1);   // ดูไม่ออกว่าอันไหนใหม่ → ใช้บรรทัดบนสุด (แอนดรอยด์เรียงใหม่สุดไว้บน)
+        }
         // เก็บแจ้งเตือนดิบที่เข้ามาไว้ดูย้อนหลัง (แม้จับยอดไม่ได้ก็เห็น) — ช่วยแก้ปัญหาหน้างานโดยไม่ต้องเดา
         let bankNotifLog = [];
         function logBankNotif(pkg, title, text, amt) {
@@ -1976,21 +2002,28 @@
         }
         window.onBankNotification = function(data) {
             try { if (typeof data === 'string') data = JSON.parse(data); } catch (e) { return; }
-            const amt = parseMoneyIn(((data && data.title) || '') + ' ' + ((data && data.text) || ''));
+            const _title = (data && data.title) || '';
+            // คัดเฉพาะบรรทัดที่เพิ่งเข้ามาใหม่ก่อน แล้วค่อยดึงยอดจากบรรทัดพวกนั้น
+            const _fresh = newestMoneyLines((data && data.pkg) || '', (data && data.text) || '');
+            const amts = [...new Set(_fresh.reduce((acc, l) => acc.concat(parseMoneyInAll(_title + ' ' + l)), []))];
+            const amt = amts.length ? amts[0] : null;   // ยอดล่าสุดไว้โชว์ใน log (ใหม่สุดอยู่บน)
             logBankNotif(data && data.pkg, data && data.title, data && data.text, amt);
-            if (amt == null) return;
+            if (!amts.length) return;
             if (!awaitingPayment) {
                 // ยังไม่ได้อยู่หน้าจ่ายเงิน — เด้งบอกเฉยๆ ว่าระบบเห็นแจ้งเตือน (ไว้ใช้ตอนทดสอบ)
-                if (window.Android && window.Android.showToast) window.Android.showToast('ระบบเห็นแจ้งเตือนเงินเข้า ' + amt + ' บาท ✓');
+                if (window.Android && window.Android.showToast) window.Android.showToast('ระบบเห็นแจ้งเตือนเงินเข้า ' + amts.join(', ') + ' บาท ✓');
                 return;
             }
-            if (Math.abs(amt - selectedKioskPrice) > 0.005) {
+            const hit = amts.find(a => Math.abs(a - selectedKioskPrice) <= 0.005);   // ยอดใหม่ตัวไหนตรงราคา
+            if (hit == null) {
                 // ยอดไม่ตรงราคา — ไม่ข้าม (กันโอนขาด/เกิน) แต่บอกให้รู้ จะได้ไม่งงว่าทำไมไม่เลื่อน
-                if (window.Android && window.Android.showToast) window.Android.showToast('เห็นเงินเข้า ' + amt + ' บาท แต่ยอดไม่ตรงราคา ' + selectedKioskPrice + ' บาท — ไม่ข้ามหน้า');
+                if (window.Android && window.Android.showToast) window.Android.showToast('เห็นเงินเข้า ' + amts.join(', ') + ' บาท แต่ยอดไม่ตรงราคา ' + selectedKioskPrice + ' บาท — ไม่ข้ามหน้า');
                 return;
             }
             stopPaySlipScan();
-            if (window.Android && window.Android.showToast) window.Android.showToast('ตรวจพบเงินเข้า ' + amt + ' บาท — ยืนยันการชำระเงินสำเร็จ!');
+            // ล้างแจ้งเตือนธนาคารที่เพิ่งใช้ไป กันมันค้างสะสมจนถูกยุบเป็นก้อนในรอบถัดไป
+            try { if (window.Android && window.Android.clearBankNotifications) window.Android.clearBankNotifications(); } catch (e) {}
+            if (window.Android && window.Android.showToast) window.Android.showToast('ตรวจพบเงินเข้า ' + hit + ' บาท — ยืนยันการชำระเงินสำเร็จ!');
             showPage('page-layout');
         };
 
@@ -3311,6 +3344,9 @@
             doneBtn.onclick = goHome;
 
             showPage('page-print');
+            // ล้างแจ้งเตือนธนาคารทุกครั้งที่สั่งปริ้น — เริ่มรอบถัดไปด้วยแถบแจ้งเตือนที่สะอาด
+            // (ทำงานเฉพาะเครื่องที่ลงแอปเวอร์ชันใหม่ ตัวเก่าข้ามไปเงียบๆ ไม่มี error)
+            try { if (window.Android && window.Android.clearBankNotifications) window.Android.clearBankNotifications(); } catch (e) {}
 
             const st = (frames[currentCategory()] || {})[selectedFrameIdx] || {};
 
