@@ -1062,6 +1062,7 @@
         function addFrameStyle(cat) {
             if (frameCounts[cat] >= 30) { alert('เพิ่มได้สูงสุด 30 กรอบต่อกลุ่มแล้วนะคะ'); return; }
             frameCounts[cat]++; const i = frameCounts[cat]; frames[cat][i] = { full: '', print: '' };
+            saveFrameThumb(cat, i, 'none'); savePrintHas(cat, i, false);
             saveFrameCounts(); renderFrameEditButtons();
         }
         function removeLastFrameStyle(cat) {
@@ -1069,7 +1070,7 @@
             const i = frameCounts[cat];
             if (!confirm(`ลบกรอบล่าสุด (#${i}) ของกลุ่มนี้?`)) return;
             window.Android.saveFramePart(i, cat + '_full', ''); window.Android.saveFramePart(i, cat + '_print', '');
-            delete frames[cat][i]; frameCounts[cat]--;
+            delete frames[cat][i]; clearFrameThumb(cat, i); frameCounts[cat]--;
             saveFrameCounts(); renderFrameEditButtons();
         }
         let displayReceiptDataURL = ''; // รูปใบเสร็จสี (ใช้โชว์ + อัป Drive ทำ QR)
@@ -1124,17 +1125,121 @@
         // เช็คว่าช่องนั้นมีรูปกรอบจริงไหม (กันไฟล์ว่างที่คืนค่ามาเป็น "data:image/png;base64," เปล่าๆ)
         function frameSet(s) { return !!s && s.indexOf('data:') === 0 && s.length > 100; }
 
+        // ===== กรอบแบบประหยัดแรม (4 สค 2569) =====
+        // ปัญหาเดิม: ตอนเปิดแอปจะโหลดกรอบ 'ทุกอัน ทั้งสีและขาวดำ' เข้าหน่วยความจำแล้วค้างไว้ตลอด
+        //   ร้านที่อัพ 44 กรอบ ไฟล์ละ 2-4 MB กินแรมหลายร้อย MB จนตู้หน่วง/แอปถูกระบบปิด
+        // ทางแก้: เก็บแค่ 'รูปย่อ' ไว้โชว์บนหน้าเลือกกรอบและหน้าแก้กรอบ
+        //   ส่วนไฟล์เต็มไปหยิบจากไฟล์ในเครื่องเฉพาะกรอบที่ลูกค้าเลือก ตอนประกอบรูป/ปริ้นเท่านั้น แล้วปล่อยทิ้ง
+        //   => ความคมของกระดาษและรูปดิจิทัลเท่าเดิมทุกประการ ลูกค้าไม่ต้องทำอะไรเลย
+        // 600 px: การ์ดบนหน้าเลือกกรอบกว้างสุด 210 css px — เผื่อไว้ราว 3 เท่า
+        // พอให้ตัวหนังสือและลายเส้นเล็กในกรอบอ่านออก (240 px ที่ลองครั้งแรกแตกชัดเจน)
+        // ถ้าอยากคมกว่านี้ปรับเป็น 900 ได้ แต่ไฟล์จะโตขึ้นราว 2 เท่า
+        const FRAME_THUMB_W = 600;    // ความกว้างรูปย่อที่ใช้โชว์บนจอ
+        const FRAME_MAX_W = 1400;     // เพดานไฟล์กรอบที่อัพใหม่ (ใบเสร็จกว้างจริงแค่ 576)
+        const THUMB_STORE_BUDGET = 2500000;   // เก็บรูปย่อลงเครื่องได้ราว 2.5 MB ที่เหลือเก็บในแรมพอ (กันที่เก็บตั้งค่าเต็ม)
+        let _thumbStored = 0;
+        let frameThumbs = { sg: {}, st: {} };        // รูปย่อของกรอบสี ('none' = ช่องนี้ไม่มีรูป)
+        let framePrintHas = { sg: {}, st: {} };      // ช่องนี้มีกรอบขาวดำหรือไม่
+        const _thKey = (cat, i) => 'fthumb_' + cat + '_' + i;
+        const _tpKey = (cat, i) => 'fthumbp_' + cat + '_' + i;
+        function loadFrameThumbs() {
+            ['sg', 'st'].forEach(cat => {
+                for (let i = 1; i <= frameCounts[cat]; i++) {
+                    try {
+                        const v = localStorage.getItem(_thKey(cat, i));
+                        if (v) { frameThumbs[cat][i] = v; _thumbStored += v.length; }
+                        const b = localStorage.getItem(_tpKey(cat, i));
+                        if (b !== null) framePrintHas[cat][i] = (b === '1');
+                    } catch (e) {}
+                }
+            });
+        }
+        function saveFrameThumb(cat, i, val) {
+            frameThumbs[cat][i] = val;
+            if (_thumbStored + val.length > THUMB_STORE_BUDGET) return;   // เกินงบ = เก็บในแรมพอ รอบหน้าค่อยสร้างใหม่
+            try { localStorage.setItem(_thKey(cat, i), val); _thumbStored += val.length; } catch (e) {}
+        }
+        function savePrintHas(cat, i, has) {
+            framePrintHas[cat][i] = !!has;
+            try { localStorage.setItem(_tpKey(cat, i), has ? '1' : '0'); } catch (e) {}
+        }
+        function clearFrameThumb(cat, i) {
+            delete frameThumbs[cat][i]; delete framePrintHas[cat][i];
+            try { localStorage.removeItem(_thKey(cat, i)); localStorage.removeItem(_tpKey(cat, i)); } catch (e) {}
+        }
+        // ย่อรูป data URL ให้ด้านยาวไม่เกิน maxW — คง PNG ไว้เพราะกรอบมีพื้นโปร่งใส
+        function shrinkImage(dataUrl, maxW) {
+            return new Promise(resolve => {
+                try {
+                    const img = new Image();
+                    img.onload = () => {
+                        try {
+                            const sc = Math.min(1, maxW / Math.max(img.width, img.height));
+                            const w = Math.max(1, Math.round(img.width * sc));
+                            const hh = Math.max(1, Math.round(img.height * sc));
+                            const c = document.createElement('canvas'); c.width = w; c.height = hh;
+                            c.getContext('2d').drawImage(img, 0, 0, w, hh);
+                            const out = c.toDataURL('image/png');
+                            c.width = 0; c.height = 0;   // ปล่อยหน่วยความจำทันที
+                            resolve(out);
+                        } catch (e) { resolve(''); }
+                    };
+                    img.onerror = () => resolve('');
+                    img.src = dataUrl;
+                } catch (e) { resolve(''); }
+            });
+        }
+        // อ่านไฟล์เต็มของกรอบจากในเครื่อง — เรียกเฉพาะตอนจะใช้จริง ห้ามเก็บค้างไว้
+        function frameFull(cat, i, part) {
+            try { return (window.Android && window.Android.getFramePart) ? window.Android.getFramePart(i, cat + '_' + part) : ''; }
+            catch (e) { return ''; }
+        }
+        function frameThumbOf(cat, i) {
+            const t = frameThumbs[cat][i];
+            return (t && t !== 'none') ? t : '';
+        }
+        // สร้างรูปย่อของช่องหนึ่ง (ถ้ายังไม่มี) — โหลดไฟล์เต็มชั่วคราวแล้วปล่อย
+        async function ensureFrameThumb(cat, i) {
+            if (frameThumbs[cat][i] !== undefined) return;
+            let full = frameFull(cat, i, 'full');
+            const hasColor = frameSet(full);
+            if (!hasColor) full = frameFull(cat, i, 'print');
+            if (!frameSet(full)) { saveFrameThumb(cat, i, 'none'); savePrintHas(cat, i, false); return; }
+            const th = await shrinkImage(full, FRAME_THUMB_W);
+            full = '';
+            saveFrameThumb(cat, i, th || 'none');
+            if (framePrintHas[cat][i] === undefined) {
+                let pf = hasColor ? frameFull(cat, i, 'print') : 'x';   // ไม่มีสี = ที่โหลดมาคือขาวดำอยู่แล้ว
+                savePrintHas(cat, i, hasColor ? frameSet(pf) : true);
+                pf = '';
+            }
+        }
+        // ไล่สร้างรูปย่อของกรอบเก่าทีละอัน เงียบๆ เป็นเบื้องหลัง (ทำครั้งเดียว ครั้งถัดไปอ่านของที่เก็บไว้)
+        let _thumbJobRunning = false;
+        async function buildMissingThumbs() {
+            if (_thumbJobRunning) return;
+            _thumbJobRunning = true;
+            try {
+                for (const cat of ['sg', 'st']) {
+                    for (let i = 1; i <= frameCounts[cat]; i++) {
+                        if (frameThumbs[cat][i] !== undefined) continue;
+                        await ensureFrameThumb(cat, i);
+                        await new Promise(r => setTimeout(r, 120));   // เว้นจังหวะ ไม่ให้จอสะดุดระหว่างลูกค้าใช้งาน
+                        const fp = document.getElementById('page-frame');
+                        if (fp && fp.classList.contains('active')) updateStylePreviews();
+                    }
+                }
+            } catch (e) {}
+            _thumbJobRunning = false;
+            renderFrameEditButtons();
+        }
+
         function loadSavedFrames() {
             loadFrameCounts();
             if (!window.Android || !window.Android.getFramePart) return;
-            ['sg', 'st'].forEach(cat => {
-                for (let i = 1; i <= frameCounts[cat]; i++) {
-                    if (!frames[cat][i]) frames[cat][i] = { full: '', print: '' };
-                    frames[cat][i].full = window.Android.getFramePart(i, cat + '_full');
-                    frames[cat][i].print = window.Android.getFramePart(i, cat + '_print');
-                }
-            });
+            loadFrameThumbs();          // อ่านรูปย่อที่เคยสร้างไว้ (เบามาก)
             renderFrameEditButtons();
+            setTimeout(buildMissingThumbs, 1500);   // กรอบที่ยังไม่มีรูปย่อ ค่อยไล่สร้างเงียบๆ ตอนแอปว่าง
         }
 
         setTimeout(loadFrameCounts, 0);
@@ -1728,8 +1833,23 @@
                 resolve({ ok: true, detail: kb < 512 ? 'สะอาดอยู่แล้ว ไม่มีอะไรต้องล้าง' : ('ล้างแล้ว — คืนพื้นที่ ' + (mb >= 1 ? mb + ' MB' : kb + ' KB')) });
             });
         }
+        // ดูหน่วยความจำที่หน้าจอใช้อยู่ (ที่เดียวกับที่กรอบ/รูปกิน) — เครื่องไหนไม่รองรับก็ข้ามไป
+        function checkMemory() {
+            return new Promise(resolve => {
+                const m = (window.performance && performance.memory) ? performance.memory : null;
+                if (!m || !m.jsHeapSizeLimit) { resolve({ ok: true, detail: 'เครื่องนี้อ่านค่าแรมไม่ได้ (ข้ามได้)' }); return; }
+                const used = Math.round(m.usedJSHeapSize / 1048576);
+                const lim = Math.round(m.jsHeapSizeLimit / 1048576);
+                const pct = lim > 0 ? Math.round(used * 100 / lim) : 0;
+                resolve({
+                    ok: pct < 75,
+                    detail: used + ' / ' + lim + ' MB (' + pct + '%)' + (pct >= 75 ? ' — สูงผิดปกติ ลองลดขนาดไฟล์กรอบ แล้วปิดแอปเปิดใหม่' : '')
+                });
+            });
+        }
         const SYS_CHECKS = [
             { id: 'net', label: 'อินเทอร์เน็ต', run: checkInternet },
+            { id: 'mem', label: 'หน่วยความจำ (แรม)', run: checkMemory },
             // 2 แถวนี้ต้องใช้บริดจ์ฝั่งแอป — ตู้ที่ยังไม่อัพ APK จะไม่เห็นเลย (ไม่ขึ้นข้อความชวนงง)
             { id: 'storage', label: 'พื้นที่เครื่อง', run: checkStorage,
               when: () => !!(window.Android && window.Android.getDeviceStorageInfo) },
@@ -2207,13 +2327,13 @@
             const cat = editCategory;
             let html = '';
             for (let i = 1; i <= frameCounts[cat]; i++) {
-                if (!frames[cat][i]) frames[cat][i] = { full: '', print: '' };
-                const hasC = frameSet(frames[cat][i].full);
-                const hasB = frameSet(frames[cat][i].print);
+                const th = frameThumbOf(cat, i);
+                const hasC = !!th;
+                const hasB = !!framePrintHas[cat][i];
                 html += `<div class="frame-edit-col">
                     <div class="frame-edit-title">#${i}</div>
-                    <button class="btn-frame-part" style="background-image:${hasC ? `url(${frames[cat][i].full})` : 'none'}" onclick="pickFrame('${cat}',${i},'full')">สี<span>digital ${hasC ? '✓' : ''}</span></button>
-                    <button class="btn-frame-part bw" style="background-image:${hasB ? `url(${frames[cat][i].print})` : 'none'}" onclick="pickFrame('${cat}',${i},'print')">ขาวดำ<span>print ${hasB ? '✓' : ''}</span></button>
+                    <button class="btn-frame-part" style="background-image:${hasC ? `url(${th})` : 'none'}" onclick="pickFrame('${cat}',${i},'full')">สี<span>digital ${hasC ? '✓' : ''}</span></button>
+                    <button class="btn-frame-part bw" style="background-image:${hasB ? `url(${th})` : 'none'}" onclick="pickFrame('${cat}',${i},'print')">ขาวดำ<span>print ${hasB ? '✓' : ''}</span></button>
                 </div>`;
             }
             // ปุ่มเพิ่ม/ลบกรอบ (ไม่จำกัดจำนวน) — ดำขอบขาว เข้าชุดปุ่มอื่นในหน้านี้
@@ -2226,9 +2346,13 @@
 
         // cat = 'sg' | 'st', part = 'full' (สี) | 'print' (ขาวดำ)
         function pickFrame(cat, idx, part) {
-            pickImage(base64 => {
-                window.Android.saveFramePart(idx, cat + '_' + part, base64);
-                frames[cat][idx][part] = base64;
+            pickImage(async (base64) => {
+                // ย่อให้อัตโนมัติก่อนเก็บ — ใบเสร็จกว้างจริงแค่ 576 px ไฟล์ 3-4 MB จึงเปลืองเปล่าๆ
+                const small = (await shrinkImage(base64, FRAME_MAX_W)) || base64;
+                base64 = '';
+                window.Android.saveFramePart(idx, cat + '_' + part, small);
+                if (part === 'full') { const th = await shrinkImage(small, FRAME_THUMB_W); saveFrameThumb(cat, idx, th || 'none'); }
+                else { savePrintHas(cat, idx, true); }
                 renderFrameEditButtons();
                 alert(`บันทึกกรอบ${part === 'full' ? 'สี (ดิจิทัล)' : 'ขาวดำ (ปริ้น)'} ${cat === 'sg' ? 'Solo&Grid' : 'Strip&Twin'} #${idx} สำเร็จ!`);
             });
@@ -2285,9 +2409,9 @@
             if (!wrap) return;
             let html = '';
             for (let i = 1; i <= frameCounts[cat]; i++) {
-                if (!frames[cat][i]) frames[cat][i] = { full: '', print: '' };
-                const inner = frameSet(frames[cat][i].full)
-                    ? `<img src="${frames[cat][i].full}" style="top:0; left:0; width:100%; height:100%; object-fit:contain;">`
+                const th = frameThumbOf(cat, i);
+                const inner = th
+                    ? `<img src="${th}" style="top:0; left:0; width:100%; height:100%; object-fit:contain;">`
                     : '<div style="height:100%; background:#000; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:bold;">BASIC</div>';
                 html += `<div class="frame-opt-card" onclick="confirmFrameSelection(${i})">
                     <div class="frame-preview-box" style="aspect-ratio:${ratio}">${inner}</div>
@@ -3317,7 +3441,7 @@
             finalImg.src = "";
             try {
                 // โชว์บนจอ = กรอบสี (ดิจิทัล) ของกลุ่มปัจจุบัน และเก็บไว้ใช้อัป Drive ทำ QR
-                const colorFrame = (frames[currentCategory()][selectedFrameIdx] || {}).full || '';
+                const colorFrame = frameFull(currentCategory(), selectedFrameIdx, 'full');   // หยิบไฟล์เต็มตอนใช้จริงเท่านั้น
                 displayReceiptDataURL = await composeReceipt(colorFrame, false);
                 finalImg.src = displayReceiptDataURL;
                 setTimeout(() => finalImg.classList.add('printed'), 300);
@@ -3348,16 +3472,19 @@
             // (ทำงานเฉพาะเครื่องที่ลงแอปเวอร์ชันใหม่ ตัวเก่าข้ามไปเงียบๆ ไม่มี error)
             try { if (window.Android && window.Android.clearBankNotifications) window.Android.clearBankNotifications(); } catch (e) {}
 
-            const st = (frames[currentCategory()] || {})[selectedFrameIdx] || {};
+            // หยิบไฟล์เต็มของกรอบที่ลูกค้าเลือกจากในเครื่อง ใช้เสร็จแล้วปล่อย (ไม่เก็บค้างในหน่วยความจำ)
+            const _fcat = currentCategory();
+            const stFull = frameFull(_fcat, selectedFrameIdx, 'full');
+            const stPrint = frameFull(_fcat, selectedFrameIdx, 'print');
 
             // รูปสี = โชว์ดิจิทัล + อัป Drive ทำ QR ให้ลูกค้าโหลด
             // ถ้ามีสติ๊กเกอร์/เส้นที่วาด ต้อง compose ใหม่ให้รูปดิจิทัล/QR มีของพวกนั้นด้วย (ไม่ใช้ภาพ preview ที่ยังไม่มี)
             const hasDeco = placedStickers.length || drawStrokes.length;
-            const colorData = hasDeco ? await composeReceipt(st.full || '', false)
-                : (displayReceiptDataURL || await composeReceipt(st.full || '', false));
+            const colorData = hasDeco ? await composeReceipt(stFull || '', false)
+                : (displayReceiptDataURL || await composeReceipt(stFull || '', false));
 
             // รูปขาวดำ = ส่งไปปริ้นกระดาษ thermal (ถ้าไม่ได้อัพกรอบขาวดำ จะ fallback เป็นกรอบสีเดิม)
-            const printFrame = frameSet(st.print) ? st.print : (st.full || '');
+            const printFrame = frameSet(stPrint) ? stPrint : (stFull || '');
 
             // ส่งไปเครื่องปริ้น thermal (จะทำงานเมื่อมีตัวเชื่อมเครื่องปริ้นในแอป)
             // โหมด kiosk: หักโควต้าตามจำนวนที่พิมพ์รอบนี้ (event ไม่คิดโควต้า)
