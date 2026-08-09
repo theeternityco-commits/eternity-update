@@ -119,6 +119,143 @@
         .frame-grid { display: flex; gap: 20px; width: 95%; max-width: 900px; margin-top: 20px; overflow-x: auto; padding: 6px 4px 14px; }
         .frame-grid .frame-opt-card:first-child { margin-left: auto; }
         .frame-grid .frame-opt-card:last-child { margin-right: auto; }
+        /* กรอบเกิน 3 อัน = จัดเป็นตาราง 3 ช่องต่อแถว เลื่อนลงดูแทนการเลื่อนข้าง (เห็นครบกว่า) */
+        .frame-grid.grid-wrap { flex-wrap: wrap; justify-content: center; overflow-x: hidden; overflow-y: auto; max-height: 62vh; }
+        .frame-grid.grid-wrap .frame-opt-card { box-sizing: border-box; flex: 0 0 calc((100% - 44px) / 3); max-width: 210px; margin: 0 !important; padding: 12px; }
+        .frame-opt-card {
+            flex: 0 0 auto; width: clamp(150px, 26vw, 210px); background: #fff; border: 1px solid #eee; border-radius: 20px;
+            padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center;
+        }
+        .frame-preview-box {
+            width: 100%; aspect-ratio: 3/4; background: #f0f0f0; border-radius: 12px;
+            margin-bottom: 15px; overflow: hidden; position: relative;
+        }
+        .frame-preview-box img { position: absolute; left: 0; width: 100%; }
+        .frame-label { font-size: 20px; font-weight: bold; color: #333; }
+
+        /* หลอดนับถอยหลังสไตล์พิกเซล Y2K Game Boy (ขาวดำ + ลดแบบ steppy ไม่สมูท) */
+        .timer-bar-bg { width: 250px; height: 22px; background: #fff; border: 3px solid #111; margin: 14px auto; overflow: hidden; padding: 3px; box-sizing: border-box; image-rendering: pixelated; }
+        .timer-bar-fill { height: 100%; width: 100%; background: repeating-linear-gradient(90deg, #111 0 11px, #fff 11px 14px); transition: width 1s steps(17, end); }
+
+        /* --- Page 3: CAMERA --- */
+        #flash-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #ffffff; opacity: 0; pointer-events: none; z-index: 9999; }
+        .flash-active { animation: flash_burst 0.5s ease-out forwards; }
+        @keyframes flash_burst { 0% { opacity: 1; } 15% { opacity: 1; } 100% { opacity: 0; } }
+
+        .cam-box { position: relative; width: 90%; max-width: 600px; background: black; border-radius: 12px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        #video { transform: scaleX(-1); }
+        #countdown { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 150px; color: white; display: none; text-shadow: 0 5px 20px rgba(0,0,0,0.5); font-weight: bold;}
+        #dots-container { display: flex; gap: 12px; }
+        .dot { width: 18px; height: 18px; background: #e0e0e0; border-radius: 50%; transition: all 0.3s ease; }
+        .dot.active { background: #ff3b30; box-shadow: 0 2px 8px rgba(255, 59, 48, 0.4); transform: scale(1.1); }
+
+        /* --- Page 4: REVIEW (Printer Animation) --- */
+        /* กลุ่มรูป+ปุ่ม จัดกึ่งกลางจอ (สืบทอด justify-content:center จาก .page) */
+        #page-review { background: #fff; }
+        .printer-slot-machine {
+            display: flex; flex-direction: column; align-items: center;
+            width: 100%; position: relative;
+        }
+
+        /* สร้างหัวเครื่องปริ้น 2 ส่วนเพื่อให้รูอยู่ตรงกลาง */
+        .slot-bezel {
+            width: 320px; height: 50px;
+            background: linear-gradient(180deg, #f5f5f5 0%, #c4c4c4 100%);
+            border-radius: 12px; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            z-index: 10; position: relative;   /* อยู่หลังกระดาษ — กระดาษห้อยทับหน้าแถบ (เหมือน mini) */
+        }
+
+        /* ช่องรูดำที่อยู่ลึกเข้าไป */
+        .slot-bezel-hole {
+            width: 280px; height: 12px; background: #111; border-radius: 6px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.9);
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 25; /* อยู่หลัง Bezel แต่หน้ากระดาษ */
+        }
+
+        .paper-scroll-area {
+            width: 260px; height: auto; overflow: hidden;  /* height:auto = โชว์ใบเสร็จเต็มใบ ไม่ตัดท่อนล่าง */
+            z-index: 20; position: relative;   /* อยู่หน้าแถบเหล็ก — แผ่นกระดาษห้อยทับหน้าช่องที่มันไหลออกมา */
+            margin-top: -25px; /* ท็อปกระดาษตรงกลางรู (รูอยู่ 19-31px จากหัวแถบ) — กระดาษดูไหลออกจากช่องพอดี */
+            background: transparent;
+        }
+
+        .receipt-image {
+            width: 100%; display: block; background: #fff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transform: translateY(-100%);
+            transition: transform 3s cubic-bezier(0.2, 0, 0.2, 1);
+            z-index: 5;
+        }
+        /* เลื่อนลงมาจนสุด = ใบเสร็จโผล่เต็มใบ (translateY(0) ไม่ให้ท่อนล่างโดน overflow ตัด) */
+        .receipt-image.printed { transform: translateY(0); }
+
+        /* เว้นช่องว่างระหว่างรูปกับปุ่มให้มากขึ้น (รูป+ปุ่มยังอยู่กึ่งกลางจอ) */
+        .action-bar { display: flex; gap: 20px; width: 90%; max-width: 400px; margin: 64px auto 0; }
+        .btn-main { flex: 1; padding: 18px; border-radius: 50px; border: none; font-size: 18px; font-weight: bold; cursor: pointer; color: white; }
+        .btn-retake { background: #fff; color:#111; border:2px solid #111; }
+        .btn-print { background: #111; color:#fff; }
+
+        /* เลือกจำนวนสำเนาบนหน้า review (โชว์เฉพาะ event mode) — kiosk จ่ายตามจำนวนแล้วจึงซ่อน */
+        .copies-bar { display: none; flex-direction: column; align-items: center; gap: 12px; margin: 36px auto 0; }
+        #page-review.show-copies .copies-bar { display: flex; }
+
+        /* โหมด kiosk: เลือกจำนวนพิมพ์ตามโควต้าที่จ่าย (สูงสุด 3) ที่หน้า review */
+        .quota-bar { display: none; flex-direction: column; align-items: center; gap: 12px; margin: 30px auto 0; }
+        #page-review.show-quota .quota-bar { display: flex; }
+        .quota-label { color: #111; font-weight: bold; font-size: 17px; letter-spacing: 1px; }
+        .quota-btns { display: flex; gap: 14px; }
+        .quota-btn { width: 78px; height: 78px; border-radius: 18px; border: 2px solid #333; background: #0c0c0c; color: #fff; font-size: 30px; font-weight: bold; cursor: pointer; }
+        .quota-btn.sel { border-color: #111; color: #111; background: #fff; }
+        .quota-btn:disabled { opacity: 0.25; cursor: default; }
+        #page-review.show-copies .action-bar { margin-top: 28px; }
+        .copies-label { font-size: 16px; color: #555; font-weight: 600; }
+        .copies-stepper { display: flex; align-items: center; gap: 26px; }
+        .copies-btn { width: 58px; height: 58px; border-radius: 50%; border: none; background: #111; color: #fff; font-size: 30px; font-weight: bold; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .copies-btn:active { transform: scale(0.92); }
+        .copies-btn:disabled { background: #e0e0e0; cursor: default; }
+        .copies-count { font-size: 36px; font-weight: bold; color: #333; min-width: 64px; text-align: center; }
+
+        /* --- Page 5: PRINTING & QR --- */
+        #page-print { background: #fff; text-align: center; }
+        .print-loader-container { margin-bottom: 20px; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #333; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        #print-status { font-size: 24px; font-weight: bold; color: #333; margin-bottom: 30px; }
+        #qrcode-container { display: flex; flex-direction: column; align-items: center; width: 100%; }
+        #qrcode { background: white; padding: 20px; border-radius: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.12); margin-bottom: 50px; }
+        .btn-done-pill { padding: 15px 100px; border-radius: 50px; border: none; background: #000; color: white; cursor: pointer; font-size: 20px; font-weight: bold; text-transform: lowercase; }
+
+        /* --- Admin Options Overlay --- */
+        /* safe center = อยู่กลางจอเมื่อเนื้อหาพอดี, แต่ถ้าเนื้อหายาวเกินจอจะชิดบน+เลื่อนได้ (ไม่โดนตัดหัว) */
+        .overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; box-sizing: border-box; background: #0c0c0c; z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: safe center; color: white; overflow-y: auto; padding: 24px 0 36px; }
+        .overlay.active { display: flex; }
+        .overlay-subtitle { font-size: 18px; color: #ffffff; letter-spacing: 4px; margin-bottom: 40px; text-transform: lowercase; }
+        .overlay-menu { display: flex; flex-direction: column; gap: 10px; width: 90%; max-width: 450px; }
+
+        .btn-menu-new {
+            padding: 15px; border-radius: 16px; border: 2px solid #5a5a5a;
+            background: linear-gradient(180deg, #d9d9d9 0%, #b3b3b3 47%, #8c8c8c 53%, #a6a6a6 100%);
+            color: #1c1c1c; font-size: 19px; font-weight: bold; cursor: pointer; text-align: center;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.6); text-transform: lowercase;
+        }
+        .btn-menu-new span { color: #555; }
+
+        /* ปุ่มเลือกช่องทางเครื่องปริ้น (USB/Bluetooth/WiFi) */
+        .btn-ptype {
+            flex: 1; padding: 16px 8px; border-radius: 14px; border: 2px solid #222;
+            background: #0c0c0c; color: #888; font-size: 16px; font-weight: bold; cursor: pointer;
+        }
+        .btn-ptype.active { border-color: #fff; color: #fff; }
+        .bt-device-item {
+            padding: 12px; border-radius: 12px; border: 1px solid #333; background: #111;
+            color: #ddd; font-size: 15px; cursor: pointer; text-align: left;
+        }
+        .bt-device-item.active { border-color: #fff; color: #fff; }
+        .bt-device-item small { display:block; color:#666; font-size:11px; }
         .frame-opt-card {
             flex: 0 0 auto; width: clamp(150px, 26vw, 210px); background: #fff; border: 1px solid #eee; border-radius: 20px;
             padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.05);
@@ -305,6 +442,36 @@
         .sticker-tray { display:flex; gap:10px; overflow-x:auto; width:90%; max-width:420px; margin:16px auto 0; padding:6px 4px; }
         .sticker-tray-item { flex:0 0 auto; width:54px; height:54px; border-radius:12px; background:#fff; border:1px solid #ddd; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:6px; }
         .sticker-tray-item img { max-width:100%; max-height:100%; pointer-events:none; }
+        /* ช่องสุดท้ายของถาด = เปิดหน้าเลือกสติ๊กเกอร์ทั้งหมด (โผล่เฉพาะตอนมีเกิน 8 อัน) */
+        .sticker-tray-more { flex:0 0 auto; width:54px; height:54px; border-radius:12px; background:#111; color:#fff;
+            border:1px solid #333; display:flex; flex-direction:column; align-items:center; justify-content:center;
+            cursor:pointer; font-size:11px; line-height:1.15; text-align:center; gap:2px; }
+        .sticker-tray-more b { font-size:17px; font-weight:bold; }
+        /* หน้าเลือกสติ๊กเกอร์เต็มจอ */
+        .stickerpick-grid { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; width:92%; max-width:620px;
+            max-height:60vh; overflow-y:auto; padding:6px 4px; }
+        .stickerpick-item { flex:0 0 auto; width:84px; height:84px; border-radius:14px; background:#fff; border:1px solid #ddd;
+            display:flex; align-items:center; justify-content:center; padding:8px; box-sizing:border-box; cursor:pointer; }
+        .stickerpick-item:active { transform:scale(0.94); }
+        .stickerpick-item img { max-width:100%; max-height:100%; pointer-events:none; }
+        /* แถบเครื่องมือหน้าตกแต่ง: ปุ่ม Draw ซ้ายมือ + ถาดสติ๊กเกอร์ (สลับเป็นจานสีตอนเปิดโหมดวาด) */
+        .deco-tools { display:flex; align-items:center; gap:10px; width:90%; max-width:480px; margin:16px auto 0; }
+        .deco-tools .sticker-tray { margin:0; flex:1 1 auto; width:auto; max-width:none; }
+        .deco-draw-btn { flex:0 0 auto; width:68px; height:68px; border-radius:14px; border:none; background:transparent; padding:0; cursor:pointer; }
+        .deco-draw-btn img { width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; }
+        .deco-draw-btn.active { box-shadow:0 0 0 3px #111; border-radius:12px; }
+        .draw-palette { display:flex; align-items:center; justify-content:center; gap:16px; flex:1 1 auto; padding:6px 4px; overflow-x:auto; }
+        .draw-swatch { flex:0 0 auto; width:40px; height:40px; border-radius:50%; cursor:pointer; border:2px solid #bbb; box-sizing:border-box; }
+        .draw-swatch.sel { box-shadow:0 0 0 3px #111; }
+        /* ===== ระบบใส่เพลง Spotify ===== */
+        .btn-add-song { width:90%; max-width:400px; margin:0 auto 12px; padding:18px; border-radius:50px; border:2px solid #111; background:#fff; color:#111; font-size:18px; font-weight:bold; cursor:pointer; text-transform:uppercase; }
+        .btn-add-song.added { background:#111; color:#fff; }   /* ใส่เพลงแล้ว = ดำ */
+        .song-result-item { display:flex; align-items:center; gap:12px; padding:10px; border-radius:12px; border:1px solid #eee; margin-bottom:8px; cursor:pointer; background:#fff; }
+        .song-result-item.sel { border-color:#111; box-shadow:0 0 0 2px #111; }
+        .song-result-item img { width:48px; height:48px; border-radius:8px; flex:0 0 auto; object-fit:cover; background:#eee; }
+        .song-result-item .song-meta { text-align:left; overflow:hidden; flex:1; }
+        .song-result-item .song-title { font-weight:bold; font-size:15px; color:#111; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .song-result-item .song-artist { font-size:13px; color:#888; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         /* แถบเครื่องมือหน้าตกแต่ง: ปุ่ม Draw ซ้ายมือ + ถาดสติ๊กเกอร์ (สลับเป็นจานสีตอนเปิดโหมดวาด) */
         .deco-tools { display:flex; align-items:center; gap:10px; width:90%; max-width:480px; margin:16px auto 0; }
         .deco-tools .sticker-tray { margin:0; flex:1 1 auto; width:auto; max-width:none; }
@@ -407,6 +574,12 @@
     </div>
 
     <!-- วิธีแก้ "แอปธนาคารไม่เด้งแจ้งเตือน" — ขั้นตอนใช้ได้ทุกเครื่อง + ปุ่มลัด (โชว์เฉพาะ APK ที่รองรับ) -->
+    <!-- เลือกสติ๊กเกอร์ทั้งหมด — เปิดจากช่องท้ายถาดตอนมีสติ๊กเกอร์เยอะ (z-index สูงกว่าหน้าตกแต่ง) -->
+    <div id="overlay-stickerpick" class="overlay" style="z-index:110;">
+        <div class="overlay-subtitle">เลือกสติ๊กเกอร์</div>
+        <div class="stickerpick-grid" id="stickerpick-grid"></div>
+        <button class="btn-back-link" onclick="toggleOverlay('overlay-stickerpick', false)">back</button>
+    </div>
     <div id="overlay-notifhelp" class="overlay" style="z-index:110;">
         <div class="boot-logo-text">receipt<span>photobooth</span></div>
         <div class="overlay-subtitle">แจ้งเตือนไม่เด้ง?</div>
@@ -2407,6 +2580,8 @@
             const ratio = (cat === 'sg') ? '4 / 5' : '9 / 16';
             const wrap = document.getElementById('frame-cards');
             if (!wrap) return;
+            // 3 อันหรือน้อยกว่า = เรียงแถวเดียวเหมือนเดิม / มากกว่านั้น = ตาราง 3 ช่องต่อแถว
+            wrap.classList.toggle('grid-wrap', frameCounts[cat] > 3);
             let html = '';
             for (let i = 1; i <= frameCounts[cat]; i++) {
                 const th = frameThumbOf(cat, i);
@@ -3209,18 +3384,47 @@
             return {};
         }
 
+        // สติ๊กเกอร์ที่ลูกค้าเลือกได้ทั้งหมด (ของพื้นฐานที่ไม่ได้ซ่อน + ที่เจ้าของร้านอัพเอง)
+        const STICKER_TRAY_MAX = 8;   // โชว์ในถาดกี่อัน ที่เหลือไปอยู่ในหน้า 'ดูทั้งหมด'
+        function allStickers() {
+            return DEFAULT_STICKERS.filter((s, i) => !hiddenBase.includes(i)).concat(userStickers);
+        }
+        function makeStickerTile(src, cls, onPick) {
+            const item = document.createElement('div');
+            item.className = cls;
+            const im = document.createElement('img'); im.src = src;
+            item.appendChild(im);
+            item.addEventListener('click', onPick);
+            return item;
+        }
+        // หน้าเลือกสติ๊กเกอร์เต็มจอ — เห็นครบทุกอันในตารางเดียว กดแล้ววางลงรูปและปิดกลับมาเอง
+        function openStickerPicker() {
+            const g = document.getElementById('stickerpick-grid');
+            if (g) {
+                g.innerHTML = '';
+                allStickers().forEach(src => g.appendChild(makeStickerTile(src, 'stickerpick-item', () => {
+                    addSticker(src);
+                    toggleOverlay('overlay-stickerpick', false);
+                })));
+            }
+            toggleOverlay('overlay-stickerpick', true);
+        }
         function buildStickerTray() {
             const tray = document.getElementById('sticker-tray');
             if (!tray) return;
             tray.innerHTML = '';
-            DEFAULT_STICKERS.filter((s, i) => !hiddenBase.includes(i)).concat(userStickers).forEach(src => {
-                const item = document.createElement('div');
-                item.className = 'sticker-tray-item';
-                const im = document.createElement('img'); im.src = src;
-                item.appendChild(im);
-                item.addEventListener('click', () => addSticker(src));
-                tray.appendChild(item);
-            });
+            const list = allStickers();
+            // เกินมาแค่อันเดียวก็ไม่คุ้มที่จะเสียช่องไปทำปุ่ม — โชว์ครบไปเลย
+            const needMore = list.length > STICKER_TRAY_MAX + 1;
+            const shown = needMore ? list.slice(0, STICKER_TRAY_MAX) : list;
+            shown.forEach(src => tray.appendChild(makeStickerTile(src, 'sticker-tray-item', () => addSticker(src))));
+            if (needMore) {
+                const more = document.createElement('div');
+                more.className = 'sticker-tray-more';
+                more.innerHTML = '<b>+' + (list.length - STICKER_TRAY_MAX) + '</b><span>ทั้งหมด</span>';
+                more.addEventListener('click', openStickerPicker);
+                tray.appendChild(more);
+            }
             const layer = document.getElementById('sticker-layer');
             if (layer && !layer._init) {
                 layer._init = true;
