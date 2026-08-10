@@ -3829,14 +3829,18 @@
             doneBtn.innerText = 'done';
             doneBtn.onclick = goHome;
             const againBtn = document.getElementById('btn-print-again');
-            if (againBtn && systemMode !== 'event' && remainingQuota > 0) {
-                againBtn.style.display = 'block';
-                againBtn.innerText = `ถ่ายเพิ่ม (เหลือ ${remainingQuota} รูป)`;
-                startPrintAutoHome(pageTimeoutSeconds);   // ตามตั้งค่า "เวลารอแต่ละหน้า" (ขวาสุด = ไม่จำกัด)
-            } else {
-                if (againBtn) againBtn.style.display = 'none';
-                startPrintAutoHome(pageTimeoutSeconds);
+            // โหมดขาย + ยังมีรูปที่จ่ายมาแล้วเหลืออยู่ = ซ่อนปุ่ม done ไว้ก่อน
+            // ลูกค้าเจอปุ่ม done แล้วกดจบรอบทั้งที่ยังพิมพ์ได้อีกบ่อยมาก (ไม่รู้ว่ากดแล้วโควตาหาย)
+            // พอใช้ครบตามที่จ่ายมาแล้ว ปุ่ม done ถึงจะโผล่
+            const hasQuota = (systemMode !== 'event' && remainingQuota > 0);
+            if (againBtn) {
+                againBtn.style.display = hasQuota ? 'block' : 'none';
+                if (hasQuota) againBtn.innerText = `ถ่ายเพิ่ม (เหลือ ${remainingQuota} รูป)`;
             }
+            doneBtn.style.display = hasQuota ? 'none' : '';
+            startPrintAutoHome(pageTimeoutSeconds);   // ตามตั้งค่า "เวลารอแต่ละหน้า" (ขวาสุด = ไม่จำกัด)
+            // ตั้งหลัง startPrintAutoHome เพราะฟังก์ชันนั้นล้างตัวจับเวลาทิ้งก่อนเริ่มใหม่
+            if (hasQuota) doneRevealTimer = setTimeout(() => { doneBtn.style.display = ''; }, DONE_REVEAL_SEC * 1000);
         }
 
         // Kotlin เรียกเมื่อส่งข้อมูลพิมพ์ครบทุกใบแล้ว (≈ พิมพ์กระดาษเสร็จ) → ค่อยขึ้น QR / จบงาน
@@ -3850,23 +3854,32 @@
 
         // ตัวจับเวลานับถอยหลังกลับหน้าหลักอัตโนมัติ (หน้าสแกนรับรูป)
         let printHomeTimer = null;
+        // ยังมีรูปเหลือ = ซ่อนปุ่ม done ไว้ 30 วินาทีแรก แล้วค่อยโผล่ให้กดได้
+        // จำเป็นมากตอนเจ้าของร้านตั้งเวลาเป็น "ไม่จำกัด" เพราะไม่มีอะไรพากลับหน้าหลักเลย
+        const DONE_REVEAL_SEC = 30;
+        let doneRevealTimer = null;
         function startPrintAutoHome(sec) {
             clearPrintAutoHome();
             if (!sec) return;   // ไม่จำกัดเวลา — โชว์ QR ค้างไว้จนลูกค้ากด done เอง
             let remaining = sec;
             const el = document.getElementById('print-countdown');
-            el.innerText = `กลับสู่หน้าหลักอัตโนมัติใน ${remaining} วินาที`;
+            // ยังมีรูปเหลือ = เตือนให้ชัดว่ากำลังจะหมดเวลา ไม่ใช่บอกเฉยๆ ว่าจะกลับหน้าหลัก
+            const msg = (n) => (systemMode !== 'event' && remainingQuota > 0)
+                ? `เหลืออีก ${remainingQuota} รูป — กดถ่ายเพิ่มภายใน ${n} วินาที`
+                : `กลับสู่หน้าหลักอัตโนมัติใน ${n} วินาที`;
+            el.innerText = msg(remaining);
             printHomeTimer = setInterval(() => {
                 remaining--;
                 if (remaining <= 0) {
                     goHome(); // goHome จะ clearPrintAutoHome ให้เอง
                 } else {
-                    el.innerText = `กลับสู่หน้าหลักอัตโนมัติใน ${remaining} วินาที`;
+                    el.innerText = msg(remaining);
                 }
             }, 1000);
         }
         function clearPrintAutoHome() {
             if (printHomeTimer) { clearInterval(printHomeTimer); printHomeTimer = null; }
+            if (doneRevealTimer) { clearTimeout(doneRevealTimer); doneRevealTimer = null; }
             const el = document.getElementById('print-countdown');
             if (el) el.innerText = '';
         }
