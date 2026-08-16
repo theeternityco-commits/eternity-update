@@ -2119,6 +2119,11 @@
             if (slipScanEnabled()) startPaySlipScan(price);
             else document.getElementById('pay-slip-box').style.display = 'none';
             awaitingPayment = true;   // เปิดหูฟังแจ้งเตือน "เงินเข้า" จากแอปธนาคารด้วย (ไม่ต้องโชว์สลิปถ้าเงินเข้าตรงยอด)
+            // เริ่มทุกออเดอร์ด้วยแถบแจ้งเตือนสะอาด — เงินเข้าของออเดอร์นี้จะมาเป็นแจ้งเตือนเดี่ยวๆ เสมอ
+            // ไม่โดนยุบรวมกับของเก่าจนระบบต้องเดาบรรทัด (ต้นเหตุเคสร้านจริง 16 สค: ยอดทดสอบ 1 บาท
+            // ค้างบนแถบ พอลูกค้าโอน 100 สองรายการถูกยุบเป็นก้อน ระบบคว้ายอดผิดตัว)
+            _notifPrevLines = {};
+            try { if (window.Android && window.Android.clearBankNotifications) window.Android.clearBankNotifications(); } catch (e) {}
             // จำกัดเวลา 30 วิ + โชว์ปุ่มกลับ (กันลูกค้าค้างหน้าจ่ายเงิน / กดผิด)
             document.getElementById('pay-controls').style.display = 'flex';
             startPayTimeout();
@@ -2263,16 +2268,22 @@
         let _notifPrevLines = {};   // แอป -> จำนวนของแต่ละบรรทัดในก้อนก่อนหน้า
         function newestMoneyLines(pkg, text) {
             const lines = String(text || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-            if (lines.length <= 1) { _notifPrevLines[pkg] = null; return lines; }   // บรรทัดเดียว = ของใหม่แน่นอน
             const count = arr => { const o = {}; arr.forEach(l => { o[l] = (o[l] || 0) + 1; }); return o; };
+            // บรรทัดเดียว = ของใหม่แน่นอน — แต่ต้อง "จำไว้ด้วย" ไม่งั้นพอมันโดนยุบเข้าก้อนทีหลัง
+            // บรรทัดเก่าตัวนี้จะถูกนับเป็นของใหม่ซ้ำ (ยอดเก่าไปยืนยันให้ลูกค้าคนใหม่ฟรี)
+            if (lines.length <= 1) { _notifPrevLines[pkg] = count(lines); return lines; }
             const cur = count(lines), prev = _notifPrevLines[pkg] || {};
             const added = [];
             for (const l in cur) { const n = cur[l] - (prev[l] || 0); for (let i = 0; i < n; i++) added.push(l); }
             _notifPrevLines[pkg] = cur;
-            return added.length ? added : lines.slice(0, 1);   // ดูไม่ออกว่าอันไหนใหม่ → ใช้บรรทัดบนสุด (แอนดรอยด์เรียงใหม่สุดไว้บน)
+            // เดาไม่ออกว่าบรรทัดไหนใหม่ → เอา "หัวแถว + ท้ายแถว" ทั้งคู่ เพราะของใหม่อยู่ปลายใดปลายหนึ่งเสมอ
+            // ห้ามเดาข้างเดียว: แม่มณีต่อของใหม่ไว้ "ล่างสุด" (หลักฐานรูปหน้างานร้านจริง 16 สค — ยอด 100 อยู่ใต้ยอด 1)
+            // เดิมเดาแต่บรรทัดบน เลยคว้ายอดทดสอบ 1 บาทที่ค้างอยู่ไปเทียบแทนยอด 100 ของลูกค้า → ไม่ข้ามหน้า
+            return added.length ? added : [lines[0], lines[lines.length - 1]];
         }
         // เก็บแจ้งเตือนดิบที่เข้ามาไว้ดูย้อนหลัง (แม้จับยอดไม่ได้ก็เห็น) — ช่วยแก้ปัญหาหน้างานโดยไม่ต้องเดา
         let bankNotifLog = [];
+        let _bankAutoClearTimer = null;   // เห็นเงินเข้าที่ยังไม่ได้ใช้ → 20 วิค่อยล้างแถบ (กันค้างสะสมจนโดนยุบรอบหน้า)
         function logBankNotif(pkg, title, text, amt) {
             bankNotifLog.unshift({ t: new Date().toLocaleTimeString('th-TH'), pkg: pkg || '', title: title || '', text: text || '', amt });
             if (bankNotifLog.length > 8) bankNotifLog.length = 8;
@@ -2302,6 +2313,12 @@
             const amt = amts.length ? amts[0] : null;   // ยอดล่าสุดไว้โชว์ใน log (ใหม่สุดอยู่บน)
             logBankNotif(data && data.pkg, data && data.title, data && data.text, amt);
             if (!amts.length) return;
+            // ไอเดียก๊อง 16 สค: เห็นเงินเข้าแล้วให้แถบสะอาดภายใน 20 วิเสมอ — ไม่มีของเก่าให้ยุบรวมรอบหน้า
+            // (ประวัติยังดูย้อนหลังได้จากปุ่ม "ดูแจ้งเตือนล่าสุด" — เก็บใน log ของแอป ไม่หายไปกับแถบ)
+            clearTimeout(_bankAutoClearTimer);
+            _bankAutoClearTimer = setTimeout(() => {
+                try { if (window.Android && window.Android.clearBankNotifications) window.Android.clearBankNotifications(); } catch (e) {}
+            }, 20000);
             if (!awaitingPayment) {
                 // ยังไม่ได้อยู่หน้าจ่ายเงิน — เด้งบอกเฉยๆ ว่าระบบเห็นแจ้งเตือน (ไว้ใช้ตอนทดสอบ)
                 if (window.Android && window.Android.showToast) window.Android.showToast('ระบบเห็นแจ้งเตือนเงินเข้า ' + amts.join(', ') + ' บาท ✓');
