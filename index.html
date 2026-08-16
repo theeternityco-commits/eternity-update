@@ -841,12 +841,31 @@
             <p style="color:#888; font-size:13px; margin:0 0 4px; text-align:center; max-width:420px;">
                 ตั้งราคาขายเอง (บาท) ราคานี้จะใช้ทั้งหน้าเลือกจำนวน, QR PromptPay และตรวจสลิปอัตโนมัติ
             </p>
+            <p style="color:#666; font-size:12px; margin:0 0 2px; text-align:center; max-width:420px; line-height:1.5;">
+                แต่ละแพลนอัพ <b style="color:#1dd1a1;">QR ระบุยอด</b> ที่สร้างจากแอปธนาคารของร้าน (แม่มณี / K SHOP) ได้
+                — ลูกค้าสแกนแล้วยอดขึ้นเองเป๊ะๆ ทุกแอปจ่ายได้ชัวร์เพราะธนาคารเป็นคนสร้างทั้งใบ (ยอดใน QR ต้องตรงราคาแพลน)
+            </p>
             <label style="color: #888;">1 รูป (บาท)</label>
             <input type="number" inputmode="numeric" id="input-price-1" style="padding: 15px; border-radius: 12px; border: 1px solid #333; background: #111; color: white;">
+            <div style="display:flex; align-items:center; gap:8px; width:100%; max-width:420px;">
+                <span id="planqr-st-1" style="flex:1; color:#666; font-size:12px; text-align:left;"></span>
+                <button onclick="pickPlanQr(1)" style="padding:8px 14px; border-radius:50px; border:1px solid #fff; background:transparent; color:#fff; font-size:13px; cursor:pointer;">อัพ QR ยอดนี้</button>
+                <button id="planqr-del-1" onclick="clearPlanQr(1)" style="padding:8px 12px; border-radius:50px; border:1px solid #555; background:transparent; color:#aaa; font-size:13px; cursor:pointer;">ลบ</button>
+            </div>
             <label style="color: #888;">2 รูป (บาท)</label>
             <input type="number" inputmode="numeric" id="input-price-2" style="padding: 15px; border-radius: 12px; border: 1px solid #333; background: #111; color: white;">
+            <div style="display:flex; align-items:center; gap:8px; width:100%; max-width:420px;">
+                <span id="planqr-st-2" style="flex:1; color:#666; font-size:12px; text-align:left;"></span>
+                <button onclick="pickPlanQr(2)" style="padding:8px 14px; border-radius:50px; border:1px solid #fff; background:transparent; color:#fff; font-size:13px; cursor:pointer;">อัพ QR ยอดนี้</button>
+                <button id="planqr-del-2" onclick="clearPlanQr(2)" style="padding:8px 12px; border-radius:50px; border:1px solid #555; background:transparent; color:#aaa; font-size:13px; cursor:pointer;">ลบ</button>
+            </div>
             <label style="color: #888;">3 รูป (บาท)</label>
             <input type="number" inputmode="numeric" id="input-price-3" style="padding: 15px; border-radius: 12px; border: 1px solid #333; background: #111; color: white;">
+            <div style="display:flex; align-items:center; gap:8px; width:100%; max-width:420px;">
+                <span id="planqr-st-3" style="flex:1; color:#666; font-size:12px; text-align:left;"></span>
+                <button onclick="pickPlanQr(3)" style="padding:8px 14px; border-radius:50px; border:1px solid #fff; background:transparent; color:#fff; font-size:13px; cursor:pointer;">อัพ QR ยอดนี้</button>
+                <button id="planqr-del-3" onclick="clearPlanQr(3)" style="padding:8px 12px; border-radius:50px; border:1px solid #555; background:transparent; color:#aaa; font-size:13px; cursor:pointer;">ลบ</button>
+            </div>
             <button class="btn-menu-new" onclick="saveKioskPrices()" style="margin-top: 16px;">save<span>prices</span></button>
         </div>
         <button class="btn-back-link" onclick="toggleOverlay('overlay-price-edit', false)">back</button>
@@ -1524,7 +1543,7 @@
             document.getElementById(id).classList.toggle('active', active);
             if (id === 'overlay-qr-edit' && active) { loadKioskSettings(); loadQrEditUI(); refreshMoneyInUI(); refreshPayQrUI(); }
             if (id === 'overlay-frames' && active) selectEditCategory(editCategory || 'sg');
-            if (id === 'overlay-price-edit' && active) loadPriceInputs();
+            if (id === 'overlay-price-edit' && active) { loadPriceInputs(); renderPlanQrRows(); }
             if (id === 'overlay-print-adjust' && active) loadBwAdjustPanel();
             if (id === 'overlay-printer-setup' && active) loadPrinterSetup();
             if (id === 'overlay-home-video' && active) refreshHomeVideoStatus();
@@ -1702,6 +1721,38 @@
             for (let q = 1; q <= 3; q++) {
                 const el = document.getElementById('price-' + q);
                 if (el) el.innerText = kioskPrices[q] + ' ฿';
+            }
+        }
+
+        // ===== QR ตามแพลนราคา (ไอเดียก๊อง 16 สค) =====
+        // ร้านสร้าง QR "ระบุยอด" จากแอปธนาคารเอง (แม่มณี/K SHOP) แล้วอัพผูกกับแพลน 1/2/3 รูป
+        // ธนาคารเป็นคนสร้างทั้งใบ = ทุกแอปสแกนจ่ายได้แน่นอน ยอดขึ้นเอง แก้ไม่ได้ ตรงราคา → แจ้งเตือนจับคู่ได้พอดี
+        function getPlanQr(qty) { try { return localStorage.getItem('planQr_' + qty) || ''; } catch (e) { return ''; } }
+        function pickPlanQr(qty) {
+            pickImage(base64 => {
+                const img = new Image();
+                img.onload = () => {
+                    const max = 600; let w = img.width, h = img.height;
+                    const sc = Math.min(1, max / Math.max(w, h)); w = Math.round(w * sc); h = Math.round(h * sc);
+                    const c = document.createElement('canvas'); c.width = w; c.height = h;
+                    c.getContext('2d').drawImage(img, 0, 0, w, h);
+                    try {
+                        localStorage.setItem('planQr_' + qty, c.toDataURL('image/png'));
+                        alert('บันทึก QR ของแพลน ' + qty + ' รูปแล้ว ✓\n\nสำคัญ: ยอดใน QR ต้องตรงกับราคาแพลนนี้เป๊ะๆ ระบบเงินเข้าอัตโนมัติถึงจะยืนยันให้');
+                    } catch (e) { alert('รูปใหญ่เกินไป เซฟไม่ลง — ลองรูปที่เล็กกว่านี้'); }
+                    renderPlanQrRows();
+                };
+                img.src = base64;
+            });
+        }
+        function clearPlanQr(qty) { try { localStorage.removeItem('planQr_' + qty); } catch (e) {} renderPlanQrRows(); }
+        function renderPlanQrRows() {
+            for (let q = 1; q <= 3; q++) {
+                const st = document.getElementById('planqr-st-' + q);
+                const del = document.getElementById('planqr-del-' + q);
+                const has = !!getPlanQr(q);
+                if (st) { st.innerText = has ? 'มี QR ยอดนี้แล้ว ✓' : 'ยังไม่มี QR เฉพาะยอด (ใช้ระบบปกติ)'; st.style.color = has ? '#1dd1a1' : '#666'; }
+                if (del) del.style.display = has ? '' : 'none';
             }
         }
 
@@ -2085,8 +2136,15 @@
             qrContainer.innerHTML = ''; // ล้างค่าเก่า
             qrContainer.style.display = 'block';
 
+            // QR ตามแพลนราคา (ไอเดียก๊อง 16 สค): ร้านสร้าง QR ระบุยอดจากแอปธนาคารเอง (แม่มณี/K SHOP)
+            // แล้วอัพทีละแพลนในหน้า price edit — ธนาคารสร้างทั้งใบ ทุกแอปสแกนจ่ายได้ชัวร์ ยอดขึ้นเองเป๊ะ
+            // มีใบของจำนวนนี้ = ใช้ใบนี้ก่อนเสมอ
+            const planQr = getPlanQr(qty);
             const customQr = getCustomPayQr();
-            if (customQr) {
+            if (planQr) {
+                document.getElementById('print-status').innerText = 'สแกนจ่ายได้เลย — ยอดขึ้นอัตโนมัติ';
+                qrContainer.innerHTML = `<img src="${planQr}" style="width:300px; height:300px; object-fit:contain; background:#fff; border-radius:30px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">`;
+            } else if (customQr) {
                 // QR ที่ร้านอัพเอง (เช่น QR แม่มณี — เงินเข้าบัญชีเดียวกับแอปธนาคารบนตู้ แจ้งเตือนเงินเข้าเด้งแน่นอน)
                 // QR แบบรูปไม่มียอดฝัง ลูกค้าพิมพ์ยอดเอง — ย้ำยอดชัดๆ (ระบบเงินเข้าอัตโนมัติต้องยอดตรงเป๊ะถึงข้ามหน้าให้)
                 document.getElementById('print-status').innerText = `Scan to Pay: ${price} THB — พิมพ์ยอด ${price} บาทให้ตรง`;
