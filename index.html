@@ -1320,7 +1320,10 @@
                 for (let i = 1; i <= frameCounts[cat]; i++) {
                     try {
                         const v = localStorage.getItem(_thKey(cat, i));
-                        if (v) { frameThumbs[cat][i] = v; _thumbStored += v.length; }
+                        // 'none' ที่เคยจำไว้ = ทิ้งแล้วเช็คใหม่ทุกครั้งที่เปิดแอป — เวอร์ชันก่อนจำ "ความว่าง" ถาวร
+                        // ทั้งที่บางทีแค่สะดุดตอนย่อรูป (แรมตึง) ทำให้การ์ดกรอบขึ้น BASIC ค้างตลอดกาล (เคสร้านจริง 16 สค)
+                        if (v === 'none') { localStorage.removeItem(_thKey(cat, i)); }
+                        else if (v) { frameThumbs[cat][i] = v; _thumbStored += v.length; }
                         const b = localStorage.getItem(_tpKey(cat, i));
                         if (b !== null) framePrintHas[cat][i] = (b === '1');
                     } catch (e) {}
@@ -1377,10 +1380,12 @@
             let full = frameFull(cat, i, 'full');
             const hasColor = frameSet(full);
             if (!hasColor) full = frameFull(cat, i, 'print');
-            if (!frameSet(full)) { saveFrameThumb(cat, i, 'none'); savePrintHas(cat, i, false); return; }
+            // ห้ามจำ "ความล้มเหลว" แบบถาวร: ช่องว่างจริง = จำแค่ในแรม / ย่อรูปสะดุด = ไม่จำเลย รอลองใหม่
+            if (!frameSet(full)) { frameThumbs[cat][i] = 'none'; framePrintHas[cat][i] = false; return; }
             const th = await shrinkImage(full, FRAME_THUMB_W);
             full = '';
-            saveFrameThumb(cat, i, th || 'none');
+            if (!th) { delete frameThumbs[cat][i]; return; }
+            saveFrameThumb(cat, i, th);
             if (framePrintHas[cat][i] === undefined) {
                 let pf = hasColor ? frameFull(cat, i, 'print') : 'x';   // ไม่มีสี = ที่โหลดมาคือขาวดำอยู่แล้ว
                 savePrintHas(cat, i, hasColor ? frameSet(pf) : true);
