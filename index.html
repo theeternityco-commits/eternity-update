@@ -414,7 +414,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             <button class="btn-menu-new" id="btn-opt-digital" style="display:none;" onclick="toggleOverlay('overlay-digital', true)">digital photo<span>ไฟล์รูปดิจิตัล</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-page-timeout', true)">page time<span>เวลารอแต่ละหน้า</span></button>
             <button class="btn-menu-new" id="btn-opt-stickers" style="display:none;" onclick="toggleOverlay('overlay-stickers', true)">stickers<span>edit / สติ๊กเกอร์</span></button>
-            <button class="btn-menu-new" id="btn-opt-fisheye" style="display:none;" onclick="toggleOverlay('overlay-fisheye', true)">fisheye<span>zoom / โป่ง</span></button>
+            <button class="btn-menu-new" id="btn-opt-fisheye" onclick="toggleOverlay('overlay-fisheye', true)">camera<span>setting</span></button>
             <button class="btn-menu-new" onclick="checkAppUpdate()" style="font-size:16px; padding:15px;">app update<span id="app-version-label">check now</span></button>
             <button class="btn-menu-new" onclick="showDeviceInfo()" style="font-size:16px; padding:15px;">device<span>license info</span></button>
         </div>
@@ -551,21 +551,32 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         <button class="btn-back-link" onclick="toggleOverlay('overlay-data', false)">back</button>
     </div>
 
-    <!-- FISHEYE SETTING (ปรับความโป่ง/ซูม) — ปุ่มเปิดถูกซ่อนจนกว่า FISHEYE_ENABLED = true -->
+    <!-- CAMERA SETTING (ภาพกระจก + โหมดฟิชอาย) — ส่วนฟิชอายซ่อนจนกว่า FISHEYE_ENABLED = true -->
     <div id="overlay-fisheye" class="overlay">
         <div class="boot-logo-text">receipt<span>photobooth</span></div>
-        <div class="overlay-subtitle">fisheye</div>
-        <div class="overlay-menu" style="gap: 16px;">
-            <p style="color:#888; font-size:13px; margin:0; text-align:center; max-width:520px;">
-                ปรับความโป่ง/ซูมกลางภาพของเลนส์ฟิชอาย — เลื่อนแล้วค่าจะเซฟอัตโนมัติ
-                (มีผลกับรูปที่ถ่ายในโหมดฟิชอาย)
+        <div class="overlay-subtitle">camera setting</div>
+        <div class="overlay-menu" style="gap: 12px;">
+            <button class="btn-cat" id="btn-mirror" onclick="toggleMirrorUI()" style="width:95%; max-width:500px; align-self:center;">ภาพกระจก (mirror)<span id="mirror-state">เปิด</span></button>
+            <p style="color:#888; font-size:12px; margin:0; text-align:center; max-width:520px;">
+                <b style="color:#ccc;">เปิด</b> = ภาพเหมือนส่องกระจก (ค่าเริ่มต้น ลูกค้าคุ้นเคยที่สุด) ·
+                <b style="color:#ccc;">ปิด</b> = ภาพจริงแบบที่คนอื่นมองเห็น (ตัวหนังสือ/ป้ายในภาพจะอ่านออก)
+                <br>มีผลทั้งภาพบนจอตอนถ่าย รูปที่ปริ้น และไฟล์ดิจิทัล
             </p>
-            <div style="display:flex; align-items:center; gap:12px; width:90%; max-width:450px; align-self:center;">
-                <span style="color:#888; font-size:13px;">น้อย</span>
-                <input type="range" id="fisheye-range" min="0" max="1.5" step="0.05" value="0.5" style="flex:1;" oninput="onFisheyeRange(this.value)">
-                <span style="color:#888; font-size:13px;">มาก</span>
+            <div id="fisheye-section" style="display:flex; flex-direction:column; gap:12px; width:100%; align-items:center;">
+                <button class="btn-cat" id="btn-fisheye-on" onclick="toggleFisheyeOnUI()" style="width:95%; max-width:500px;">โหมดฟิชอาย<span id="fisheye-on-state">เปิด</span></button>
+                <p style="color:#888; font-size:12px; margin:0; text-align:center; max-width:520px;">
+                    เปิด = ลูกค้าได้เลือกเองว่าจะถ่ายกล้องปกติหรือฟิชอาย · ปิด = ข้ามหน้าเลือก เข้าถ่ายกล้องปกติเลย
+                </p>
+                <div id="fisheye-strength-box" style="display:flex; flex-direction:column; gap:8px; width:100%; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:12px; width:90%; max-width:450px;">
+                        <span style="color:#888; font-size:13px;">น้อย</span>
+                        <input type="range" id="fisheye-range" min="0" max="1.5" step="0.05" value="0.5" style="flex:1;" oninput="onFisheyeRange(this.value)">
+                        <span style="color:#888; font-size:13px;">มาก</span>
+                    </div>
+                    <div style="color:#1dd1a1; font-weight:bold; text-align:center; font-size:18px;">ความโป่ง: <span id="fisheye-val">0.50</span></div>
+                    <div id="fisheye-strength-hint" style="display:none; color:#777; font-size:12px; text-align:center;">(เปิดโหมดฟิชอายด้านบนก่อน ค่านี้ถึงจะมีผล)</div>
+                </div>
             </div>
-            <div style="color:#1dd1a1; font-weight:bold; text-align:center; font-size:18px;">ความโป่ง: <span id="fisheye-val">0.50</span></div>
         </div>
         <button class="btn-back-link" onclick="toggleOverlay('overlay-fisheye', false)">back</button>
     </div>
@@ -1153,6 +1164,51 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             try { localStorage.setItem('fisheyeStrength', String(v)); } catch (e) {}
         }
 
+        // ===== ตั้งค่ากล้อง (เมนู camera setting) — HTML ล้วน เก็บ localStorage อัปออนไลน์ได้ =====
+        // fisheyeOn = เปิดให้ลูกค้าเลือกโหมดฟิชอายไหม (ปิด = ข้ามหน้าเลือก เข้ากล้องปกติเลย)
+        // mirrorOn  = ภาพกระจก (ค่าเริ่มต้น "เปิด" = พฤติกรรมเดิมที่ใช้กันมาตลอด ห้ามเปลี่ยนค่าตั้งต้น)
+        let fisheyeOn = true;
+        let mirrorOn = true;
+        function loadCameraPrefs() {
+            try {
+                fisheyeOn = localStorage.getItem('fisheyeOn') !== '0';
+                mirrorOn = localStorage.getItem('mirrorOn') !== '0';
+            } catch (e) {}
+            applyMirrorToPreview();
+        }
+        function setFisheyeOn(on) {
+            fisheyeOn = !!on;
+            try { localStorage.setItem('fisheyeOn', on ? '1' : '0'); } catch (e) {}
+        }
+        function setMirrorOn(on) {
+            mirrorOn = !!on;
+            try { localStorage.setItem('mirrorOn', on ? '1' : '0'); } catch (e) {}
+            applyMirrorToPreview();
+        }
+        // ภาพพรีวิวบนจอตอนถ่าย (กล้องปกติ) — ฟิชอายกลับด้านในตัวเชดเดอร์เอง
+        function applyMirrorToPreview() {
+            const v = document.getElementById('video');
+            if (v) v.style.transform = mirrorOn ? 'scaleX(-1)' : 'none';
+        }
+        function toggleMirrorUI() { setMirrorOn(!mirrorOn); renderCameraSettingUI(); }
+        function toggleFisheyeOnUI() { setFisheyeOn(!fisheyeOn); renderCameraSettingUI(); }
+        function renderCameraSettingUI() {
+            const mb = document.getElementById('btn-mirror'), ms = document.getElementById('mirror-state');
+            if (ms) ms.textContent = mirrorOn ? 'เปิด' : 'ปิด';
+            if (mb) mb.classList.toggle('active-cat', mirrorOn);
+            const fb = document.getElementById('btn-fisheye-on'), fs = document.getElementById('fisheye-on-state');
+            if (fs) fs.textContent = fisheyeOn ? 'เปิด' : 'ปิด';
+            if (fb) fb.classList.toggle('active-cat', fisheyeOn);
+            // ปิดโหมดฟิชอายแล้ว "ไม่ซ่อน" ตัวปรับความโป่ง — แค่ทำให้จางลงพร้อมบอกเหตุผล
+            // (ซ่อนไปเลยทำให้เจ้าของร้านนึกว่าของหาย/แอปเพี้ยน — เคสก๊อง 4 กย)
+            const box = document.getElementById('fisheye-strength-box');
+            if (box) { box.style.opacity = fisheyeOn ? '1' : '0.4'; }
+            const hint = document.getElementById('fisheye-strength-hint');
+            if (hint) hint.style.display = fisheyeOn ? 'none' : 'block';
+            const sec = document.getElementById('fisheye-section');
+            if (sec) sec.style.display = FISHEYE_ENABLED ? 'flex' : 'none';
+        }
+
         // เวลานับถอยหลังก่อนถ่ายแต่ละรูป (วินาที) — ปรับได้ 1–10 (ดีฟอลต์ 3), เก็บใน localStorage จึงอัปออนไลน์ได้
         let captureSeconds = 3;
         function loadCaptureTime() { try { const v = parseInt(localStorage.getItem('captureSeconds'), 10); if (!isNaN(v)) captureSeconds = Math.min(10, Math.max(1, v)); } catch (e) {} }
@@ -1431,11 +1487,14 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         setTimeout(loadDigitalMode, 0);       // โหลดโหมดไฟล์ดิจิทัล (ภาพนิ่ง/GIF)
         setTimeout(loadHiddenBase, 0);        // โหลดรายการสติ๊กเกอร์พื้นฐานที่ถูกซ่อน
         setTimeout(loadQrPrefs, 0);           // โหลดโหมด QR + สวิตช์ข้อความรูปหมดอายุ
+        setTimeout(loadCameraPrefs, 0);       // โหลดค่าตั้งกล้อง (ภาพกระจก / เปิด-ปิดโหมดฟิชอาย)
 
         // ซ่อน/โชว์ UI ตามสวิตช์ฟีเจอร์ — เปิดฟิชอายแค่เปลี่ยน FISHEYE_ENABLED = true แล้วอัปไฟล์
         function applyFeatureFlags() {
+            // ปุ่ม camera setting โชว์เสมอ (มีตัวตั้งภาพกระจกที่ไม่เกี่ยวกับฟิชอาย) —
+            // ส่วนฟิชอายข้างในถูกซ่อน/โชว์ตามธงโดย renderCameraSettingUI()
             const fbtn = document.getElementById('btn-opt-fisheye');
-            if (fbtn) fbtn.style.display = FISHEYE_ENABLED ? '' : 'none';
+            if (fbtn) fbtn.style.display = '';
             const sbtn = document.getElementById('btn-opt-stickers');
             if (sbtn) sbtn.style.display = STICKERS_ENABLED ? '' : 'none';
             const gbtn = document.getElementById('btn-opt-digital');
@@ -1542,12 +1601,13 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             if (id === 'overlay-notifhelp' && active) renderNotifHelp();
         }
 
-        // ===== Fisheye setting (ปรับความโป่ง/ซูม) =====
+        // ===== Camera setting (ภาพกระจก + โหมดฟิชอาย + ความโป่ง) =====
         function loadFisheyePanel() {
             const r = document.getElementById('fisheye-range');
             const el = document.getElementById('fisheye-val');
             if (r) r.value = fisheyeStrength;
             if (el) el.textContent = fisheyeStrength.toFixed(2);
+            renderCameraSettingUI();
         }
         function onFisheyeRange(v) {
             const n = parseFloat(v);
@@ -3065,8 +3125,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         function confirmFrameSelection(idx) {
             stopFrameTimer();
             selectedFrameIdx = idx;
-            // ฟิชอายถูกซ่อน → ข้ามหน้าเลือกโหมด เข้ากล้องปกติเลย (flow เหมือนไม่มีระบบฟิชอาย)
-            if (!FISHEYE_ENABLED) {
+            // ฟิชอายถูกซ่อน หรือเจ้าของร้านปิดโหมดฟิชอายไว้ (camera setting)
+            // → ข้ามหน้าเลือกโหมด เข้ากล้องปกติเลย (flow เหมือนไม่มีระบบฟิชอาย)
+            if (!FISHEYE_ENABLED || !fisheyeOn) {
                 cameraMode = 'normal';
                 retakeUsed = false;
                 startCamera();
@@ -3140,6 +3201,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             uniform float u_strength;   // ความแรงโป่ง
             uniform float u_aspect;     // อัตราส่วนภาพที่แสดง (กว้าง/สูง) ทำให้วงโป่งกลม
             uniform vec4 u_crop;        // (u0,v0,uW,vH) พื้นที่ crop กึ่งกลางในเทกซ์เจอร์วิดีโอ
+            uniform float u_mirror;     // 1 = ภาพกระจก (ค่าเริ่มต้น) · 0 = ภาพจริง
             void main() {
                 vec2 c = v_uv - 0.5;
                 vec2 cc = vec2(c.x * u_aspect, c.y);
@@ -3152,7 +3214,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                     scale = rnSrc / rn;
                 }
                 vec2 duv = c * scale + 0.5;     // 0..1 หลังบิด
-                duv.x = 1.0 - duv.x;            // กลับซ้ายขวา (กล้องหน้า = กระจกเงา)
+                duv.x = mix(duv.x, 1.0 - duv.x, u_mirror);   // กลับซ้ายขวาเมื่อเปิดภาพกระจก (ตั้งค่าในเมนู camera setting)
                 vec2 tuv = u_crop.xy + duv * u_crop.zw;
                 gl_FragColor = vec4(texture2D(u_tex, tuv).rgb, 1.0);   // ทึบเสมอ กัน canvas โปร่งใส
             }`;
@@ -3207,6 +3269,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 u_strength: gl.getUniformLocation(prog, 'u_strength'),
                 u_aspect: gl.getUniformLocation(prog, 'u_aspect'),
                 u_crop: gl.getUniformLocation(prog, 'u_crop'),
+                u_mirror: gl.getUniformLocation(prog, 'u_mirror'),
                 u_tex: gl.getUniformLocation(prog, 'u_tex')
             };
             gl.uniform1i(fisheye.u_tex, 0);
@@ -3237,6 +3300,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             gl.uniform1f(fe.u_strength, fisheyeStrength);
             gl.uniform1f(fe.u_aspect, targetRatio);
             gl.uniform4f(fe.u_crop, sx / vw, sy / vh, sw / vw, sh / vh);
+            gl.uniform1f(fe.u_mirror, mirrorOn ? 1.0 : 0.0);   // อ่านค่าสดทุกเฟรม — สลับในเมนูแล้วเห็นผลทันที
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         }
 
@@ -3259,6 +3323,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             gifClips = []; stopGifSampling();
             getAudioCtx();   // ปลดล็อกเสียงไว้ล่วงหน้า (ยังอยู่ใน gesture chain ของการกดเลือกโหมดกล้อง)
             showPage('page-camera');
+            applyMirrorToPreview();   // ภาพบนจอต้องตรงกับรูปที่จะได้จริง (ตั้งค่าในเมนู camera setting)
             // ปรับกรอบพรีวิวกล้องให้ "ตรงสัดส่วนช่องจริง" ที่จะออก (ผู้ใช้เห็นเท่าที่จะปริ้นตั้งแต่ตอนถ่าย)
             // คำนวณ w/h ให้พอดีจอโดยรักษาสัดส่วนเป๊ะ (กันบั๊ก maxWidth ทำให้เพี้ยนเป็นเกือบ 1:1)
             const geom = getLayoutGeom(currentLayout);
@@ -3343,7 +3408,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             } else {
                 const v = document.getElementById('video');
                 if (!v || !v.videoWidth) return null;
-                src = v; vw = v.videoWidth; vh = v.videoHeight; mirror = true;
+                src = v; vw = v.videoWidth; vh = v.videoHeight; mirror = mirrorOn;   // ตามตั้งค่า camera setting
             }
             let sw, sh;
             if (vw / vh > targetRatio) { sh = vh; sw = vh * targetRatio; } else { sw = vw; sh = vw / targetRatio; }
@@ -3566,8 +3631,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             const sx = (vw - sw) / 2, sy = (vh - sh) / 2;
 
             c.width = Math.round(sw); c.height = Math.round(sh);
-            // กลับด้านภาพ (กล้องหน้า) ให้เหมือนมองกระจก
-            ctx.translate(c.width, 0); ctx.scale(-1, 1);
+            // กลับด้านภาพ (กล้องหน้า) ให้เหมือนมองกระจก — ปิดได้ในเมนู camera setting (ค่าเริ่มต้น = เปิด)
+            if (mirrorOn) { ctx.translate(c.width, 0); ctx.scale(-1, 1); }
             ctx.drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
 
             photos.push(c.toDataURL('image/png'));
