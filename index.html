@@ -557,14 +557,14 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         <div class="overlay-subtitle">camera setting</div>
         <div class="overlay-menu" style="gap: 12px;">
             <button class="btn-cat" id="btn-mirror" onclick="toggleMirrorUI()" style="width:95%; max-width:500px; align-self:center;">ภาพกระจก (mirror)<span id="mirror-state">เปิด</span></button>
-            <p style="color:#888; font-size:12px; margin:0; text-align:center; max-width:520px;">
+            <p style="color:#888; font-size:13px; margin:0; text-align:center; max-width:520px;">
                 <b style="color:#ccc;">เปิด</b> = ภาพเหมือนส่องกระจก (ค่าเริ่มต้น ลูกค้าคุ้นเคยที่สุด) ·
                 <b style="color:#ccc;">ปิด</b> = ภาพจริงแบบที่คนอื่นมองเห็น (ตัวหนังสือ/ป้ายในภาพจะอ่านออก)
                 <br>มีผลทั้งภาพบนจอตอนถ่าย รูปที่ปริ้น และไฟล์ดิจิทัล
             </p>
             <div id="fisheye-section" style="display:flex; flex-direction:column; gap:12px; width:100%; align-items:center;">
-                <button class="btn-cat" id="btn-fisheye-on" onclick="toggleFisheyeOnUI()" style="width:95%; max-width:500px;">โหมดฟิชอาย<span id="fisheye-on-state">เปิด</span></button>
-                <p style="color:#888; font-size:12px; margin:0; text-align:center; max-width:520px;">
+                <button class="btn-cat" id="btn-fisheye-on" onclick="toggleFisheyeOnUI()" style="width:95%; max-width:500px;">ให้ลูกค้าเลือกฟิชอาย<span id="fisheye-on-state">เปิด</span></button>
+                <p style="color:#888; font-size:13px; margin:0; text-align:center; max-width:520px;">
                     เปิด = ลูกค้าได้เลือกเองว่าจะถ่ายกล้องปกติหรือฟิชอาย · ปิด = ข้ามหน้าเลือก เข้าถ่ายกล้องปกติเลย
                 </p>
                 <div id="fisheye-strength-box" style="display:flex; flex-direction:column; gap:8px; width:100%; align-items:center;">
@@ -574,10 +574,14 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                         <span style="color:#888; font-size:13px;">มาก</span>
                     </div>
                     <div style="color:#1dd1a1; font-weight:bold; text-align:center; font-size:18px;">ความโป่ง: <span id="fisheye-val">0.50</span></div>
-                    <div id="fisheye-strength-hint" style="display:none; color:#777; font-size:12px; text-align:center;">(เปิดโหมดฟิชอายด้านบนก่อน ค่านี้ถึงจะมีผล)</div>
+                </div>
+                <!-- คำอธิบายต้องอยู่ "นอก" กล่องที่ถูกหรี่ ไม่งั้นมันจางตามจนอ่านไม่ออกพอดีตอนที่ต้องอ่าน -->
+                <div id="fisheye-strength-hint" style="display:none; color:#aaa; font-size:13px; text-align:center;">
+                    เปิดสวิตช์ด้านบนก่อน ค่าความโป่งถึงจะมีผลกับรูป
                 </div>
             </div>
         </div>
+        <p style="color:#666; font-size:12px; margin:14px 0 0; text-align:center;">ทุกค่าในหน้านี้เซฟอัตโนมัติทันทีที่กด/เลื่อน</p>
         <button class="btn-back-link" onclick="toggleOverlay('overlay-fisheye', false)">back</button>
     </div>
 
@@ -995,7 +999,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             </div>
         </div>
         <div class="timer-bar-bg"><div id="cammode-timer-bar" class="timer-bar-fill"></div></div>
-        <button class="btn-back-link" onclick="showPage('page-frame')" style="color:#888;">back</button>
+        <!-- ร้านที่ปิดหน้าเลือกกรอบไว้ ลูกค้าไม่เคยผ่าน page-frame → กด back แล้วจะไปเจอหน้าเปล่าค้างจนหมดเวลา
+             (บั๊กเก่าที่มีมาก่อนแล้ว) → ถอยกลับไปหน้าเลือกเลย์เอาต์แทน -->
+        <button class="btn-back-link" onclick="showPage(showFrameChoice ? 'page-frame' : 'page-layout')" style="color:#888;">back</button>
     </div>
 
     <!-- CAMERA -->
@@ -1193,16 +1199,17 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         function toggleMirrorUI() { setMirrorOn(!mirrorOn); renderCameraSettingUI(); }
         function toggleFisheyeOnUI() { setFisheyeOn(!fisheyeOn); renderCameraSettingUI(); }
         function renderCameraSettingUI() {
+            // ตัวหนังสือบอกสถานะต้องอ่านออกชัดๆ — เจ้าของร้านต้องรู้ทันทีว่าตอนนี้เปิดหรือปิด
             const mb = document.getElementById('btn-mirror'), ms = document.getElementById('mirror-state');
-            if (ms) ms.textContent = mirrorOn ? 'เปิด' : 'ปิด';
+            if (ms) { ms.textContent = mirrorOn ? 'เปิด' : 'ปิด'; ms.style.color = mirrorOn ? '#fff' : '#999'; ms.style.fontWeight = 'bold'; }
             if (mb) mb.classList.toggle('active-cat', mirrorOn);
             const fb = document.getElementById('btn-fisheye-on'), fs = document.getElementById('fisheye-on-state');
-            if (fs) fs.textContent = fisheyeOn ? 'เปิด' : 'ปิด';
+            if (fs) { fs.textContent = fisheyeOn ? 'เปิด' : 'ปิด'; fs.style.color = fisheyeOn ? '#fff' : '#999'; fs.style.fontWeight = 'bold'; }
             if (fb) fb.classList.toggle('active-cat', fisheyeOn);
-            // ปิดโหมดฟิชอายแล้ว "ไม่ซ่อน" ตัวปรับความโป่ง — แค่ทำให้จางลงพร้อมบอกเหตุผล
-            // (ซ่อนไปเลยทำให้เจ้าของร้านนึกว่าของหาย/แอปเพี้ยน — เคสก๊อง 4 กย)
+            // ปิดโหมดฟิชอายแล้ว "ไม่ซ่อน" ตัวปรับความโป่ง — แค่หรี่ลงพร้อมบอกเหตุผลไว้ข้างนอกกล่อง
+            // (ซ่อนไปเลยทำให้เจ้าของร้านนึกว่าของหาย/แอปเพี้ยน — เคสก๊อง 4 กย ; ยังปรับค่าล่วงหน้าได้ปกติ)
             const box = document.getElementById('fisheye-strength-box');
-            if (box) { box.style.opacity = fisheyeOn ? '1' : '0.4'; }
+            if (box) { box.style.opacity = fisheyeOn ? '1' : '0.55'; }
             const hint = document.getElementById('fisheye-strength-hint');
             if (hint) hint.style.display = fisheyeOn ? 'none' : 'block';
             const sec = document.getElementById('fisheye-section');
@@ -3214,7 +3221,10 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                     scale = rnSrc / rn;
                 }
                 vec2 duv = c * scale + 0.5;     // 0..1 หลังบิด
-                duv.x = mix(duv.x, 1.0 - duv.x, u_mirror);   // กลับซ้ายขวาเมื่อเปิดภาพกระจก (ตั้งค่าในเมนู camera setting)
+                // กลับซ้ายขวาเมื่อเปิดภาพกระจก (ตั้งค่าในเมนู camera setting)
+                // ใช้เงื่อนไขตรงๆ ไม่ใช้ mix() — บาง GPU (mediump แท้ๆ) คำนวณ mix แล้วปัดเศษต่างไปเล็กน้อย
+                // ค่าดีฟอลต์ (กระจกเปิด) จะได้ผลลัพธ์ตรงกับของเดิมเป๊ะทุกเครื่อง
+                duv.x = (u_mirror > 0.5) ? (1.0 - duv.x) : duv.x;
                 vec2 tuv = u_crop.xy + duv * u_crop.zw;
                 gl_FragColor = vec4(texture2D(u_tex, tuv).rgb, 1.0);   // ทึบเสมอ กัน canvas โปร่งใส
             }`;
