@@ -1891,7 +1891,63 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         // ===== QR ตามแพลนราคา (ไอเดียก๊อง 16 สค) =====
         // ร้านสร้าง QR "ระบุยอด" จากแอปธนาคารเอง (แม่มณี/K SHOP) แล้วอัพผูกกับแพลน 1/2/3 รูป
         // ธนาคารเป็นคนสร้างทั้งใบ = ทุกแอปสแกนจ่ายได้แน่นอน ยอดขึ้นเอง แก้ไม่ได้ ตรงราคา → แจ้งเตือนจับคู่ได้พอดี
-        function getPlanQr(qty) { try { return localStorage.getItem('planQr_' + qty) || ''; } catch (e) { return ''; } }
+        // ===== ที่เก็บรูป QR รับเงิน (hotfix 4 กย 2569 — อาการ "รูปใหญ่เกินไป เซฟไม่ลง") =====
+        // เหตุ: เดิมเก็บรูป QR ลง localStorage ตรงๆ ซึ่งเป็นที่เก็บก้อนเล็ก (ราว 5-10MB ต่อเครื่อง)
+        //       รูป QR จากแอปธนาคารย่อ 600px เป็น PNG ก้อนใหญ่ (หลายแสนไบต์ต่อใบ) ร้านที่มีกรอบเยอะ
+        //       + อัป QR หลายแพลน = เต็ม -> setItem โยน error -> ขึ้นกล่อง "รูปใหญ่เกินไป เซฟไม่ลง"
+        // แก้: เก็บเป็น "ไฟล์ในแอป" ผ่านสะพานเดิมที่มีมาทุกเวอร์ชัน (saveFramePart/getFramePart)
+        //      + ย้ายของเก่าที่ค้างใน localStorage ออกให้เองตอนอ่านครั้งแรก = คืนพื้นที่ให้ระบบอื่นด้วย
+        const QR_SLOT = {
+            plan: (qty) => ({ idx: qty, part: 'planqr' }),      // ไฟล์ frame_{1..3}_planqr.png
+            custom: () => ({ idx: 0, part: 'custompayqr' })     // ไฟล์ frame_0_custompayqr.png (idx 0 ไม่ชนกรอบ)
+        };
+        let _qrCache = {};   // กันอ่านไฟล์ใหญ่ซ้ำๆ ตอนหน้าจ่ายเงิน
+        function qrNativeOK() {
+            try { return !!(window.Android && window.Android.saveFramePart && window.Android.getFramePart); }
+            catch (e) { return false; }
+        }
+        function qrLoad(key, slot) {
+            if (_qrCache[key] !== undefined) return _qrCache[key];
+            let v = '';
+            if (qrNativeOK()) { try { v = window.Android.getFramePart(slot.idx, slot.part) || ''; } catch (e) {} }
+            if (!frameSet(v)) {
+                let old = ''; try { old = localStorage.getItem(key) || ''; } catch (e) {}
+                v = old;
+                // ของเก่าที่ยังค้างใน localStorage -> ย้ายเป็นไฟล์แล้วคืนพื้นที่ทันที (ทำครั้งเดียวจบ)
+                if (frameSet(old) && qrNativeOK()) {
+                    try {
+                        window.Android.saveFramePart(slot.idx, slot.part, old);
+                        if (frameSet(window.Android.getFramePart(slot.idx, slot.part) || '')) localStorage.removeItem(key);
+                    } catch (e) {}
+                }
+            }
+            _qrCache[key] = v;
+            return v;
+        }
+        function qrSave(key, slot, dataUrl) {
+            _qrCache[key] = dataUrl;
+            if (qrNativeOK()) {
+                try {
+                    window.Android.saveFramePart(slot.idx, slot.part, dataUrl);
+                    let back = '';
+                    try { back = window.Android.getFramePart(slot.idx, slot.part) || ''; } catch (e2) {}
+                    if (frameSet(back)) {   // เขียนไฟล์สำเร็จจริงเท่านั้นถึงถือว่าเซฟได้
+                        try { localStorage.removeItem(key); } catch (e3) {}
+                        return true;
+                    }
+                } catch (e) {}
+            }
+            try { localStorage.setItem(key, dataUrl); return true; }
+            catch (e) { delete _qrCache[key]; return false; }
+        }
+        function qrClear(key, slot) {
+            delete _qrCache[key];
+            if (qrNativeOK()) { try { window.Android.saveFramePart(slot.idx, slot.part, ''); } catch (e) {} }
+            try { localStorage.removeItem(key); } catch (e) {}
+        }
+        const QR_FULL_MSG = 'ที่เก็บในเครื่องเต็ม เซฟไม่ลงค่ะ\n\nลองใหม่ด้วยรูปที่เล็กลง หรือลบกรอบ/สติ๊กเกอร์ที่ไม่ได้ใช้ออกก่อนนะคะ\n(ถ้าอัปเดตแอปเป็นเวอร์ชันล่าสุด ระบบจะเก็บ QR เป็นไฟล์ในแอปให้เอง ไม่เต็มอีก)';
+
+        function getPlanQr(qty) { return qrLoad('planQr_' + qty, QR_SLOT.plan(qty)); }
         function pickPlanQr(qty) {
             pickImage(base64 => {
                 const img = new Image();
@@ -1900,16 +1956,15 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                     const sc = Math.min(1, max / Math.max(w, h)); w = Math.round(w * sc); h = Math.round(h * sc);
                     const c = document.createElement('canvas'); c.width = w; c.height = h;
                     c.getContext('2d').drawImage(img, 0, 0, w, h);
-                    try {
-                        localStorage.setItem('planQr_' + qty, c.toDataURL('image/png'));
+                    if (qrSave('planQr_' + qty, QR_SLOT.plan(qty), c.toDataURL('image/png'))) {
                         alert('บันทึก QR ของแพลน ' + qty + ' รูปแล้ว ✓\n\nสำคัญ: ยอดใน QR ต้องตรงกับราคาแพลนนี้เป๊ะๆ ระบบเงินเข้าอัตโนมัติถึงจะยืนยันให้');
-                    } catch (e) { alert('รูปใหญ่เกินไป เซฟไม่ลง — ลองรูปที่เล็กกว่านี้'); }
+                    } else { alert(QR_FULL_MSG); }
                     renderPlanQrRows();
                 };
                 img.src = base64;
             });
         }
-        function clearPlanQr(qty) { try { localStorage.removeItem('planQr_' + qty); } catch (e) {} renderPlanQrRows(); }
+        function clearPlanQr(qty) { qrClear('planQr_' + qty, QR_SLOT.plan(qty)); renderPlanQrRows(); }
         function renderPlanQrRows() {
             for (let q = 1; q <= 3; q++) {
                 const st = document.getElementById('planqr-st-' + q);
@@ -2744,7 +2799,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         }
 
         // ===== QR รับเงินแบบอัพรูปเอง (เช่น QR แม่มณี) + สวิตช์กล้องสแกนสลิป — HTML ล้วน ใช้ได้ทุก APK =====
-        function getCustomPayQr() { try { return localStorage.getItem('customPayQr') || ''; } catch (e) { return ''; } }
+        function getCustomPayQr() { return qrLoad('customPayQr', QR_SLOT.custom()); }
         function slipScanEnabled() { try { return localStorage.getItem('slipScanOn') !== '0'; } catch (e) { return true; } }
         // ถอดรหัส QR จากรูปด้วย jsQR — ลองหลายขนาด (รูปคมชัด/รูปถ่ายหน้าจอ)
         function decodeQrFromImage(img) {
@@ -2779,17 +2834,16 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                     const sc = Math.min(1, max / Math.max(w, h)); w = Math.round(w * sc); h = Math.round(h * sc);
                     const c = document.createElement('canvas'); c.width = w; c.height = h;
                     c.getContext('2d').drawImage(img, 0, 0, w, h);
-                    try {
-                        localStorage.setItem('customPayQr', c.toDataURL('image/png'));
+                    if (qrSave('customPayQr', QR_SLOT.custom(), c.toDataURL('image/png'))) {
                         if (payload) alert('บันทึกแล้ว ✓ ถอดรหัส QR สำเร็จ\n\nระบบจะสร้าง QR ใหม่พร้อมฝังยอดเงินให้อัตโนมัติทุกครั้ง — ลูกค้าสแกนแล้วยอดขึ้นเอง ไม่ต้องพิมพ์');
                         else alert('บันทึกรูปแล้ว แต่ถอดรหัส QR ไม่ได้ — จะใช้แบบรูปนิ่ง (ลูกค้าพิมพ์ยอดเอง)\n\nเคล็ดลับ: ใช้รูปที่บันทึกจากแอปธนาคารตรงๆ (คมชัด ไม่เอียง) อย่าใช้รูปถ่ายหน้าจอ');
-                    } catch (e) { alert('รูปใหญ่เกินไป เซฟไม่ลง — ลองรูปที่เล็กกว่านี้'); }
+                    } else { alert(QR_FULL_MSG); }
                     refreshPayQrUI();
                 };
                 img.src = base64;
             });
         }
-        function clearCustomPayQr() { try { localStorage.removeItem('customPayQr'); localStorage.removeItem('payQrPayload'); } catch (e) {} refreshPayQrUI(); }
+        function clearCustomPayQr() { qrClear('customPayQr', QR_SLOT.custom()); try { localStorage.removeItem('payQrPayload'); } catch (e) {} refreshPayQrUI(); }
         function toggleSlipScan() { try { localStorage.setItem('slipScanOn', slipScanEnabled() ? '0' : '1'); } catch (e) {} refreshPayQrUI(); }
         function refreshPayQrUI() {
             // กล่อง QR รับเงินโชว์ทุก APK (QR ฝังยอด + สแกนสลิปของเราเอง ทำงานได้ทุกเวอร์ชัน)
