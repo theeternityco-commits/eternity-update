@@ -1086,6 +1086,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     <div id="page-print" class="page">
         <div class="print-loader-container"><div id="print-loader" class="spinner"></div></div>
         <h2 id="print-status">Printed!</h2>
+        <div id="print-rescue-note" style="display:none; color:#999; font-size:14px; margin:-8px 0 10px; text-align:center; max-width:520px;"></div>
+        <div id="print-escape" style="display:none; flex-direction:column; align-items:center; gap:8px; margin-top:18px;">
+            <div style="color:#999; font-size:13px; text-align:center;">ใช้เวลานานกว่าปกติ — กดข้ามได้เลยค่ะ</div>
+            <button id="print-escape-btn" onclick="printRescue('manual')" style="padding:12px 40px; border-radius:50px; border:1px solid #bbb; background:transparent; color:#555; font-size:16px; font-weight:bold; cursor:pointer;">ข้ามขั้นตอนนี้</button>
+        </div>
         <div id="pay-amount" style="display:none; font-size:46px; font-weight:900; color:#111; margin:-14px 0 18px; text-align:center;"></div>
         <div id="qrcode-container" style="display:none;">
             <div id="qrcode"></div>
@@ -3384,6 +3389,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
 
         function startCamera() {
             photos = [];
+            displayReceiptDataURL = '';   // กันรูปของลูกค้าคนก่อนค้างมาใช้ต่อ ถ้ารอบนี้ compose พลาด
             gifClips = []; stopGifSampling();
             getAudioCtx();   // ปลดล็อกเสียงไว้ล่วงหน้า (ยังอยู่ใน gesture chain ของการกดเลือกโหมดกล้อง)
             showPage('page-camera');
@@ -4499,10 +4505,76 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             }
         }
 
+        // ===== กันหน้าปริ้นค้าง (hotfix 4 กย 2569 — เคสจริง: ลูกค้าจ่ายแล้วค้างหน้ากำลังปริ้น กระดาษไม่ออก) =====
+        // กติกาใหม่: หน้าปริ้นห้ามเป็น "ทางตัน" เด็ดขาด ทุกขั้นต้องมีนาฬิกาปลุก
+        // และถ้าอะไรพัง ลูกค้าที่จ่ายเงินมาแล้วต้องได้กระดาษก่อนเสมอ (ไม่มี QR ยังดีกว่าไม่ได้อะไรเลย)
+        const PRINT_ESCAPE_SEC = 25;    // รอเท่านี้แล้วโชว์ปุ่มให้ร้าน/ลูกค้ากดข้ามเองได้
+        const PRINT_UPLOAD_SEC = 45;    // รออัปโหลด/สัญญาณจากแอปนานสุดเท่านี้ แล้วปริ้นให้เลย
+        const GIF_WAIT_MS = 20000;      // รอไฟล์ GIF นานสุด 20 วิ (ไม่ให้บล็อกการปริ้น)
+        let printRescueTimer = null, printEscapeTimer = null;
+        let printRescueDone = false;    // กันกู้ซ้ำซ้อน
+        let paperSent = false;          // ส่งงานเข้าเครื่องพิมพ์ของรอบนี้ไปหรือยัง
+        function clearPrintRescue() {
+            clearTimeout(printRescueTimer); clearTimeout(printEscapeTimer);
+            printRescueTimer = printEscapeTimer = null;
+            const box = document.getElementById('print-escape'); if (box) box.style.display = 'none';
+        }
+        function armPrintRescue(sec, escapeLabel) {
+            clearPrintRescue();
+            printEscapeTimer = setTimeout(() => {
+                const box = document.getElementById('print-escape');
+                const btn = document.getElementById('print-escape-btn');
+                if (btn) btn.innerText = escapeLabel || 'ข้ามขั้นตอนนี้';
+                if (box) box.style.display = 'flex';
+            }, PRINT_ESCAPE_SEC * 1000);
+            printRescueTimer = setTimeout(() => printRescue('timeout'), sec * 1000);
+        }
+        // กู้หน้าปริ้น: ปริ้นกระดาษให้ก่อน (ถ้ายังไม่ได้ปริ้น) แล้วปิดงานอย่างสุภาพพร้อมปุ่ม done
+        async function printRescue(reason) {
+            if (printRescueDone) return;
+            printRescueDone = true;
+            clearPrintRescue();
+            awaitingThermal = false; clearTimeout(thermalTimer);
+            pendingGifPromise = null;
+            if (!paperSent && window.Android && window.Android.printThermal) {
+                let d = '';
+                try { d = await composeReceipt(pendingPrintFrame || '', true); }
+                catch (e) { d = pendingColorData || ''; }
+                if (d) { paperSent = true; try { window.Android.printThermal(d, printQuantity); } catch (e) {} }
+            }
+            const loader = document.getElementById('print-loader'); if (loader) loader.style.display = 'none';
+            const st = document.getElementById('print-status');
+            if (st) st.innerText = paperSent ? 'ปริ้นรูปให้แล้วค่ะ' : 'ระบบขัดข้องชั่วคราว';
+            const note = document.getElementById('print-rescue-note');
+            if (note) {
+                note.innerText = paperSent
+                    ? 'ส่งรูปขึ้นคลังไม่สำเร็จ (เน็ตอาจขัดข้อง) จึงไม่มี QR รับไฟล์รอบนี้ — รูปกระดาษออกให้ครบแล้วนะคะ'
+                    : 'รอบนี้ทำรายการไม่สำเร็จ รบกวนแจ้งพนักงานร้านนะคะ';
+                note.style.display = 'block';
+            }
+            const qrEl = document.getElementById('qrcode'); if (qrEl) qrEl.innerHTML = '';
+            const exp = document.getElementById('qr-expiry-notice'); if (exp) exp.style.display = 'none';
+            const slip = document.getElementById('pay-slip-box'); if (slip) slip.style.display = 'none';
+            const qc = document.getElementById('qrcode-container'); if (qc) qc.style.display = 'flex';
+            try { finalizePrintPage(); } catch (e) {}
+            console.error('printRescue:', reason);
+        }
+        // ตาข่ายกันตกชั้นสุดท้าย: ถ้ามี error หลุดมือระหว่างรออยู่บนหน้าปริ้น ให้กู้หน้าอัตโนมัติ
+        window.addEventListener('unhandledrejection', (ev) => {
+            try {
+                const onPrint = document.getElementById('page-print').classList.contains('active');
+                const loaderEl = document.getElementById('print-loader');
+                const waiting = !!loaderEl && loaderEl.style.display !== 'none';
+                if (onPrint && waiting && !printRescueDone) printRescue('unhandled');
+            } catch (e) {}
+        });
+
         async function confirmPrint() {
             // รีเซ็ตหน้า print ให้เป็นหน้า loading สะอาดๆ
             clearDecorationTimer();
             stopPaySlipScan();
+            printRescueDone = false; paperSent = false; clearPrintRescue();
+            const rn = document.getElementById('print-rescue-note'); if (rn) rn.style.display = 'none';
             document.getElementById('print-loader').style.display = 'block';
             document.getElementById('print-status').innerText = 'กำลังเตรียมรูปของคุณ...';
             document.getElementById('qrcode-container').style.display = 'none';
@@ -4530,8 +4602,12 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             // รูปสี = โชว์ดิจิทัล + อัป Drive ทำ QR ให้ลูกค้าโหลด
             // ถ้ามีสติ๊กเกอร์/เส้นที่วาด ต้อง compose ใหม่ให้รูปดิจิทัล/QR มีของพวกนั้นด้วย (ไม่ใช้ภาพ preview ที่ยังไม่มี)
             const hasDeco = placedStickers.length || drawStrokes.length;
-            const colorData = hasDeco ? await composeReceipt(stFull || '', false)
-                : (displayReceiptDataURL || await composeReceipt(stFull || '', false));
+            // ห้ามปล่อยให้ compose พังแล้วรอบตายเงียบ (เคสจริง 4 กย): อ่านรูป/กรอบไม่ได้ = ถอยไปใช้พรีวิวของรอบนี้
+            let colorData = '';
+            try {
+                colorData = hasDeco ? await composeReceipt(stFull || '', false)
+                    : (displayReceiptDataURL || await composeReceipt(stFull || '', false));
+            } catch (e) { console.error('compose colour failed', e); colorData = displayReceiptDataURL || ''; }
 
             // รูปขาวดำ = ส่งไปปริ้นกระดาษ thermal (ถ้าไม่ได้อัพกรอบขาวดำ จะ fallback เป็นกรอบสีเดิม)
             const printFrame = frameSet(stPrint) ? stPrint : (stFull || '');
@@ -4554,6 +4630,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             // เมื่อ onPrintComplete คืน URL มา ค่อย compose ใบเสร็จพร้อม QR แล้วสั่งพิมพ์ (handlePrintModeUploadDone)
             if (qrMode === 'print') {
                 document.getElementById('print-status').innerText = 'กำลังเตรียมรูป...';
+                // กระดาษในโหมดนี้ออกหลังอัปโหลดเสร็จ → ถ้าอัปไม่สำเร็จต้องมีคนปลุก ไม่งั้นค้างยาว
+                armPrintRescue(PRINT_UPLOAD_SEC, 'ปริ้นเลย (ข้ามการส่งรูปขึ้นคลัง)');
                 sendDigitalUpload();
                 return;
             }
@@ -4574,6 +4652,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 awaitingThermal = true;
                 clearTimeout(thermalTimer);
                 thermalTimer = setTimeout(() => { if (awaitingThermal) { awaitingThermal = false; finishToQR(); } }, 180000); // กันค้างถ้าไม่มีสัญญาณกลับ
+                armPrintRescue(180, 'ข้ามไปหน้าถัดไป');   // ปุ่มกดข้ามโผล่ที่ 25 วิ (เครื่องปริ้นไม่ตอบ/กระดาษหมด)
+                paperSent = true;
                 try { window.Android.printThermal(printData, printQuantity); }
                 catch (e) { console.error('printThermal error', e); awaitingThermal = false; clearTimeout(thermalTimer); finishToQR(); }
             } else {
@@ -4623,11 +4703,19 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         let pendingGifPromise = null;
         async function sendDigitalUpload() {
             document.getElementById('print-status').innerText = 'กำลังเตรียมรูป...';
+            if (!printRescueDone) armPrintRescue(PRINT_UPLOAD_SEC, 'ข้ามไปหน้าถัดไป');
             let gifData = '';
             if (pendingGifPromise) {
-                try { gifData = (await pendingGifPromise) || ''; } catch (e) {}
+                // รอ GIF ได้ แต่ไม่เกิน 20 วิ (เครื่องช้า/เฟรมเยอะ ไม่ควรทำให้กระดาษไม่ออก)
+                try {
+                    gifData = (await Promise.race([
+                        Promise.resolve(pendingGifPromise).catch(() => ''),
+                        new Promise(r => setTimeout(() => r(''), GIF_WAIT_MS))
+                    ])) || '';
+                } catch (e) {}
                 pendingGifPromise = null;
             }
+            if (printRescueDone) return;   // ถูกกู้ไประหว่างรอแล้ว ไม่ต้องยิงซ้ำ
             if (hubActive() && window.Android.setHubExtras) {
                 let bwData = '';
                 try {
@@ -4637,10 +4725,12 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                     if (bwData) bwData = await addFilmGrain(bwData, 30);
                 } catch (e) {}
                 try { window.Android.setHubExtras(bwData || '', gifData || ''); } catch (e) {}
-                window.Android.printPhoto(pendingColorData, printQuantity);
+                try { window.Android.printPhoto(pendingColorData, printQuantity); }
+                catch (e) { console.error('printPhoto error', e); printRescue('bridge'); }
                 return;
             }
-            window.Android.printPhoto(gifData || pendingColorData, printQuantity);
+            try { window.Android.printPhoto(gifData || pendingColorData, printQuantity); }
+            catch (e) { console.error('printPhoto error', e); printRescue('bridge'); }
         }
 
         // APK v1.5+ (apk 9) เท่านั้นที่ส่งสัญญาณ onThermalDone กลับมา → ใช้รอพิมพ์เสร็จได้
@@ -4696,6 +4786,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
 
         // โหมดพิมพ์ QR ลงสลิป: ได้ URL จากการอัป Drive แล้ว → สร้าง QR, compose ใบเสร็จพร้อม QR, แล้วสั่งพิมพ์
         async function handlePrintModeUploadDone(url) {
+            clearPrintRescue();          // อัปโหลดผ่านแล้ว — ต่อจากนี้เป็นคิวเครื่องพิมพ์
+            if (printRescueDone) return; // กู้หน้าไปแล้ว (กระดาษออกแล้ว) ไม่ต้องพิมพ์ซ้ำ
             pendingQrUrl = url;
             let qrCanvas = null;
             // เรนเดอร์ QR ที่ 2 เท่าของขนาดปริ้น แล้วย่อลงแบบไม่เกลี่ยสีตอน compose (ย่อ 2:1 ลงตัวพอดี)
@@ -4714,6 +4806,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 awaitingThermal = true;
                 clearTimeout(thermalTimer);
                 thermalTimer = setTimeout(() => { if (awaitingThermal) { awaitingThermal = false; showPrintDone(url); } }, 180000);
+                armPrintRescue(180, 'ข้ามไปหน้าถัดไป');
+                paperSent = true;
                 try { window.Android.printThermal(printData, printQuantity); }
                 catch (e) { console.error('printThermal error', e); awaitingThermal = false; clearTimeout(thermalTimer); showPrintDone(url); }
             } else {
@@ -4725,6 +4819,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         // จบงานโหมดพิมพ์ QR ลงสลิป — มีเครื่องพิมพ์: QR อยู่บนกระดาษแล้ว ไม่ต้องโชว์บนจอ
         // ไม่มีเครื่องพิมพ์ (fallback): โชว์ QR บนจอแทน เพื่อให้ลูกค้ายังรับรูปได้
         function showPrintDone(url) {
+            clearPrintRescue();
             document.getElementById('print-loader').style.display = 'none';
             const hasPrinter = !!(window.Android && window.Android.printThermal);
             const qrEl = document.getElementById('qrcode');
@@ -4815,8 +4910,10 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         }
 
         window.onPrintComplete = function(data) {
-            if (typeof data === 'string') data = JSON.parse(data);
-            if (data.status !== "OK") return;
+            try { if (typeof data === 'string') data = JSON.parse(data); } catch (e) { data = null; }
+            clearPrintRescue();
+            if (!data || data.status !== "OK") { printRescue('upload-failed'); return; }   // เดิม: return เงียบ = ค้างตลอดกาล
+            if (printRescueDone) return;
 
             // โหมดพิมพ์ QR ลงสลิป: เพิ่งอัป Drive เสร็จ → ไปสร้าง QR + compose + พิมพ์ (ไม่โชว์ QR บนจอ)
             if (printFlowMode === 'print') { handlePrintModeUploadDone(data.url); return; }
