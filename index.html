@@ -1131,6 +1131,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         // รอเครื่องพิมพ์กระดาษเสร็จก่อนค่อยขึ้น QR (กันงานพิมพ์ซ้อน + ลูกค้าไม่งงตอนพิมพ์หลายใบ)
         let awaitingThermal = false;
         let thermalTimer = null;
+        let printRoundActive = false;   // true ระหว่างรอบปริ้นที่ยังรอ callback จากแอป — จบรอบ/เริ่มรอบใหม่ = false
         let pendingColorData = '';
         let pendingPrintFrame = '';      // กรอบขาวดำที่รอ compose พร้อม QR (โหมดพิมพ์ QR ลงสลิป)
         let pendingQrUrl = '';           // URL รูปบน Drive ของรอบนี้ (ใช้ตอนพิมพ์เสร็จในโหมดพิมพ์ลงสลิป)
@@ -1581,7 +1582,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             document.getElementById(id).classList.add('active');
             syncHomeVideoPlayback(id);
             // หน้าเลือก layout: เริ่มนับถอยหลัง auto-cancel ทุกครั้งที่เข้า, ออกจากหน้าเมื่อไหร่หยุดทันที
-            if (id === 'page-quantity') applyPriceVisibility();   // อัปเดตการโชว์ราคาทุกครั้งที่เข้าหน้าเลือกจำนวน
+            if (id === 'page-quantity') { applyPriceVisibility(); startQuantityTimer(); }   // อัปเดตการโชว์ราคาทุกครั้งที่เข้าหน้าเลือกจำนวน + เด้งกลับเองถ้าถูกทิ้งไว้
+            else stopQuantityTimer();
             if (id === 'page-layout') startLayoutTimer(pageTimeoutSeconds);
             else stopLayoutTimer();
             // หน้า "Choose Your Style" มี auto-cancel — เข้าหน้านี้เริ่มจับเวลาใหม่ (กดback จากหน้าเลือกกล้องก็กลับมาทำงาน), ออกหน้าหยุดทันที
@@ -2197,6 +2199,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             clearDecorationTimer();
             stopPaySlipScan();
             resetPrintPageLeftovers();
+            printRoundActive = false; awaitingThermal = false; clearTimeout(thermalTimer);   // จบรอบ — callback/timer ที่มาช้าถูกทิ้ง
+            stopQuantityTimer();
             stopFisheye();   // หยุด render loop ฟิชอาย กัน WebGL วิ่งค้างเปลือง GPU
             if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
             cameraStream = null;
@@ -2385,6 +2389,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             document.getElementById('print-loader').style.display = 'none';
             document.getElementById('print-countdown').innerText = '';
             resetPrintPageLeftovers();   // หน้าจ่ายเงินใช้กล่องเดียวกับหน้าปริ้นเสร็จ — ต้องล้างซากรอบก่อนทุกครั้ง
+            printRoundActive = false; awaitingThermal = false; clearTimeout(thermalTimer);
+            latePay = null;   // ออเดอร์ใหม่ = ยกเลิกหน้าต่างเงินเข้าช้าของออเดอร์ก่อน
 
             const qrContainer = document.getElementById('qrcode');
             qrContainer.innerHTML = ''; // ล้างค่าเก่า
@@ -2495,7 +2501,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             payTimeoutLeft = pageTimeoutSeconds;
             const tick = () => {
                 if (el) el.innerText = 'กลับหน้าเลือกอัตโนมัติใน ' + payTimeoutLeft + ' วิ';
-                if (payTimeoutLeft <= 0) { cancelPayment(); return; }
+                if (payTimeoutLeft <= 0) { cancelPayment('timeout'); return; }
                 payTimeoutLeft--;
             };
             tick();
@@ -2504,7 +2510,20 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         function stopPayTimeout() {
             if (payTimeoutTimer) { clearInterval(payTimeoutTimer); payTimeoutTimer = null; }
         }
-        function cancelPayment() {
+        // เงินเข้าช้ากว่าหน้ารอ (ลูกค้าเปิดแอปธนาคารช้า หน้าจ่ายหมดเวลาไปก่อน 2-3 วิ) — จ่ายแล้วต้องได้ถ่าย (R2)
+        // จำออเดอร์ที่หมดเวลาไว้ 2 นาที ถ้าแจ้งเตือนเงินเข้าตรงยอดโผล่มาในช่วงนั้น พาไปถ่ายให้เลย
+        let latePay = null;
+        let quantityTimer = null;
+        function startQuantityTimer() {
+            stopQuantityTimer();
+            if (!pageTimeoutSeconds) return;
+            quantityTimer = setTimeout(() => { if (document.getElementById('page-quantity').classList.contains('active')) goHome(); },
+                                       Math.max(60, pageTimeoutSeconds * 2) * 1000);
+        }
+        function stopQuantityTimer() { if (quantityTimer) { clearTimeout(quantityTimer); quantityTimer = null; } }
+        function cancelPayment(reason) {
+            latePay = (reason === 'timeout' && selectedKioskPrice)
+                ? { price: selectedKioskPrice, qty: paidQuota, until: Date.now() + 120000 } : null;
             stopPaySlipScan();          // ปิดกล้อง + awaitingPayment=false + หยุดตัวนับ + ซ่อนปุ่ม
             showPage('page-quantity');  // กลับหน้าเลือกจำนวน
         }
@@ -2526,6 +2545,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             if (data.length < 20) return { ok: false, reason: 'short' };
             if (window._lastPayQrPayload && data === window._lastPayQrPayload) return { ok: false, reason: 'own' };
             if (data.slice(0, 6) === '000201' && data.indexOf('A000000677010111') >= 0) return { ok: false, reason: 'own' };   // QR จ่ายเงิน ไม่ใช่สลิป
+            // ต้องเป็น QR บนสลิปโอนเงินของธนาคารไทยเท่านั้น (โครง TLV: "00" + ความยาว + "0006000001" ...)
+            // QR อื่นๆ (LINE / Wi-Fi / ลิงก์ / นามบัตร) ห้ามผ่านเด็ดขาด — ไม่งั้นส่องอะไรก็ได้ = รูปฟรี (R7)
+            if (!(data.slice(0, 2) === '00' && data.indexOf('0006000001') === 4)) return { ok: false, reason: 'notslip' };
             const hh = slipHash(data);
             if (usedSlipRefs.indexOf(hh) >= 0) return { ok: false, reason: 'used' };
             return { ok: true, hash: hh };
@@ -2570,6 +2592,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 showPage('page-layout');
             } else if (res.reason === 'used') { if (st) st.innerText = 'สลิปนี้ถูกใช้ไปแล้ว — ใช้สลิปของการโอนครั้งนี้เท่านั้น'; }
             else if (res.reason === 'own') { if (st) st.innerText = 'นี่คือ QR จ่ายเงิน — โอนก่อน แล้วค่อยโชว์สลิปให้กล้อง'; }
+            else if (res.reason === 'notslip') { if (st) st.innerText = 'ไม่ใช่ QR บนสลิปโอนเงิน — โชว์ QR จากสลิปของธนาคารนะคะ'; }
         }
 
         function stopPaySlipScan() {
@@ -2670,6 +2693,15 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 try { if (window.Android && window.Android.clearBankNotifications) window.Android.clearBankNotifications(); } catch (e) {}
             }, 20000);
             if (!awaitingPayment) {
+                if (latePay && Date.now() < latePay.until && amts.some(a => Math.abs(a - latePay.price) <= 0.005)) {
+                    // เงินของออเดอร์ที่เพิ่งหมดเวลาไป มาถึงช้าไปนิดเดียว — ลูกค้าจ่ายแล้ว ต้องได้ถ่าย
+                    const lp = latePay; latePay = null;
+                    paidQuota = lp.qty; remainingQuota = lp.qty; printQuantity = lp.qty;
+                    try { if (window.Android && window.Android.clearBankNotifications) window.Android.clearBankNotifications(); } catch (e) {}
+                    if (window.Android && window.Android.showToast) window.Android.showToast('ตรวจพบเงินเข้า ' + lp.price + ' บาท (มาช้ากว่าหน้ารอนิดหน่อย) — ไปถ่ายได้เลย!');
+                    showPage('page-layout');
+                    return;
+                }
                 // ยังไม่ได้อยู่หน้าจ่ายเงิน — เด้งบอกเฉยๆ ว่าระบบเห็นแจ้งเตือน (ไว้ใช้ตอนทดสอบ)
                 if (window.Android && window.Android.showToast) window.Android.showToast('ระบบเห็นแจ้งเตือนเงินเข้า ' + amts.join(', ') + ' บาท ✓');
                 return;
@@ -3389,7 +3421,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             if (canvas) canvas.style.display = 'none';
         }
 
-        function startCamera() {
+        function startCamera(attempt) {
             photos = [];
             displayReceiptDataURL = '';   // กันรูปของลูกค้าคนก่อนค้างมาใช้ต่อ ถ้ารอบนี้ compose พลาด
             gifClips = []; stopGifSampling();
@@ -3414,7 +3446,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             const dots = document.getElementById('dots-container');
             dots.innerHTML = '';
             for(let i=0; i<totalPhotos; i++) dots.innerHTML += '<div class="dot"></div>';
+            // กันหน้ากล้องเป็นทางตัน (R1): กล้องไม่ตอบใน 12 วิ หรือถูกปฏิเสธ → ลองใหม่ 1 ครั้ง แล้วถอยกลับหน้าเลือกเลย์เอาต์ (โควตายังอยู่)
+            clearTimeout(camWatchdog);
+            camWatchdog = setTimeout(() => cameraFailed('timeout', attempt), 12000);
             navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } } }).then(stream => {
+                clearTimeout(camWatchdog);
                 cameraStream = stream;
                 const videoEl = document.getElementById('video');
                 const feCanvas = document.getElementById('fisheye-canvas');
@@ -3427,7 +3463,21 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                     feCanvas.style.display = 'none';
                 }
                 setTimeout(() => takeNext(0), 1000);
-            });
+            }).catch(err => { clearTimeout(camWatchdog); cameraFailed(String(err && err.name || err), attempt); });
+        }
+        let camWatchdog = null;
+        function cameraFailed(reason, attempt) {
+            console.error('camera failed', reason, attempt);
+            try { if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; } } catch (e) {}
+            const st = document.getElementById('status-text');
+            if (!attempt) {   // ลองใหม่ 1 ครั้ง (กล้องบางรุ่นเปิดครั้งแรกไม่ติด)
+                if (st) st.innerText = 'กำลังเปิดกล้องใหม่...';
+                setTimeout(() => startCamera(1), 1500);
+                return;
+            }
+            if (st) st.innerText = 'เปิดกล้องไม่ได้';
+            alert('เปิดกล้องไม่สำเร็จค่ะ — ลองเลือกเลย์เอาต์อีกครั้ง ถ้ายังไม่ได้รบกวนแจ้งพนักงาน (รูปที่จ่ายมายังอยู่ครบ)');
+            showPage('page-layout');
         }
 
         // ===== ไฟล์ดิจิทัลแบบ GIF เคลื่อนไหว (GIF_ENABLED) =====
@@ -3790,7 +3840,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             // โหลดรูปถ่ายทั้งหมด (crop มาตรงสัดส่วนช่องแล้ว) — โหมด GIF ส่งเฟรมของแต่ละช่องมาแทนได้
             const srcList = (extraOpts && extraOpts.photoOverride) ? extraOpts.photoOverride : photos;
             const imgs = [];
-            for (let i = 0; i < srcList.length; i++) imgs.push(await loadImage(srcList[i]));
+            // รูปไหนอ่านไม่ได้ (ไฟล์เพี้ยน/แรมตึง) ให้ข้ามช่องนั้น — ใบเสร็จยังออกครบใบ ดีกว่าล้มทั้งใบ (R4)
+            for (let i = 0; i < srcList.length; i++) {
+                try { imgs.push(await loadImage(srcList[i])); }
+                catch (e) { console.error('photo decode failed', i, e); imgs.push(null); }
+            }
 
             canvas.width = geom.W;
             canvas.height = geom.totalH + stripH;   // + แถบ QR ล่าง (0 ถ้าไม่ได้พิมพ์ QR)
@@ -3800,7 +3854,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             // โหลดรูปกรอบไว้ก่อน (ใช้ทั้งตอนตรวจ "เจาะรู" และตอนวาด)
-            const ov = frameSet(overlaySrc) ? await loadImage(overlaySrc) : null;
+            let ov = null;
+            if (frameSet(overlaySrc)) { try { ov = await loadImage(overlaySrc); } catch (e) { console.error('frame decode failed', e); ov = null; } }
 
             // ตัดสินใจชั้นรูป: frameOnTop = กรอบทับบนรูป (รูปอยู่ใต้กรอบ) ตามที่ลูกค้าขอ
             //   under = บังคับรูปใต้กรอบ · over = บังคับรูปบนกรอบ (แบบเดิม) · auto = เดาจากกรอบว่าเจาะรูไหม
@@ -3813,6 +3868,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             // วาดรูปถ่ายทุกใบลงช่อง (มี margin เว้นข้าง)
             const drawPhotos = () => {
                 for (let i = 0; i < imgs.length; i++) {
+                    if (!imgs[i]) continue;   // รูปที่อ่านไม่ได้ถูกข้ามไว้ — เว้นช่องว่างแทน
                     const col = i % geom.cols;
                     const row = Math.floor(i / geom.cols);
                     const x = geom.xOffset + col * (geom.cellW + geom.G);
@@ -4574,7 +4630,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         async function confirmPrint() {
             // รีเซ็ตหน้า print ให้เป็นหน้า loading สะอาดๆ
             clearDecorationTimer();
+            try { toggleOverlay('overlay-stickerpick', false); } catch (e) {}   // กันหน้าเลือกสติกเกอร์ค้างบังหน้าปริ้น (R3)
             stopPaySlipScan();
+            printRoundActive = true;      // รอบปริ้นนี้ยังรอ callback อยู่ — callback ที่มาช้าข้ามรอบจะถูกทิ้ง (R6)
             printRescueDone = false; paperSent = false; clearPrintRescue();
             const rn = document.getElementById('print-rescue-note'); if (rn) rn.style.display = 'none';
             document.getElementById('print-loader').style.display = 'block';
@@ -4862,7 +4920,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
 
         // Kotlin เรียกเมื่อส่งข้อมูลพิมพ์ครบทุกใบแล้ว (≈ พิมพ์กระดาษเสร็จ) → ค่อยขึ้น QR / จบงาน
         window.onThermalDone = function() {
-            if (!awaitingThermal) return;   // ไม่ได้รออยู่ (เช่นใบทดสอบ) → ไม่ทำอะไร
+            if (!awaitingThermal || !printRoundActive) return;   // ไม่ได้รออยู่ (ใบทดสอบ / รอบก่อนจบไปแล้ว) → ไม่ทำอะไร
             awaitingThermal = false;
             clearTimeout(thermalTimer);
             if (printFlowMode === 'print') showPrintDone(pendingQrUrl);   // โหมดพิมพ์ลงสลิป: อัป+พิมพ์เสร็จแล้ว
@@ -4917,6 +4975,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             // (ปุ่มที่ค้างมาจากรอบก่อน ห้ามพาข้ามหน้าจ่ายเงินเด็ดขาด — ช่องโหว่ได้รูปฟรี)
             if (awaitingPayment) return;                                  // กำลังอยู่หน้าจ่ายเงิน = ปุ่มนี้คือซาก
             if (systemMode !== 'event' && remainingQuota <= 0) return;   // ไม่มีโควตาเหลือ = ไม่มีสิทธิ์ถ่ายเพิ่ม
+            printRoundActive = false; awaitingThermal = false; clearTimeout(thermalTimer);
             clearPrintAutoHome();
             retakeUsed = false;
             photos = [];
@@ -4926,6 +4985,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         }
 
         window.onPrintComplete = function(data) {
+            if (!printRoundActive) { console.warn('late onPrintComplete ignored (round over)'); return; }   // ของลูกค้าคนก่อน — ห้ามแสดง/พิมพ์ให้คนใหม่
             try { if (typeof data === 'string') data = JSON.parse(data); } catch (e) { data = null; }
             clearPrintRescue();
             if (!data || data.status !== "OK") { printRescue('upload-failed'); return; }   // เดิม: return เงียบ = ค้างตลอดกาล
