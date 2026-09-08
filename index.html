@@ -1504,6 +1504,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         setTimeout(loadHiddenBase, 0);        // โหลดรายการสติ๊กเกอร์พื้นฐานที่ถูกซ่อน
         setTimeout(loadQrPrefs, 0);           // โหลดโหมด QR + สวิตช์ข้อความรูปหมดอายุ
         setTimeout(loadCameraPrefs, 0);       // โหลดค่าตั้งกล้อง (ภาพกระจก / เปิด-ปิดโหมดฟิชอาย)
+        // ปลดหมุดหน้าจอทันทีที่โหลดไฟล์ใหม่ — ห้ามรอให้ร้านกดเข้าโหมดก่อน
+        // (เครื่องที่ถูกปักหมุดจากแพตช์ก่อนหน้า พอดึงอัปเดตนี้ปุ๊บต้องปริ้นได้ทันที ดู R14)
+        setTimeout(() => { try { if (window.Android && window.Android.setKioskPin) window.Android.setKioskPin(false); } catch (e) {} }, 0);
 
         // ซ่อน/โชว์ UI ตามสวิตช์ฟีเจอร์ — เปิดฟิชอายแค่เปลี่ยน FISHEYE_ENABLED = true แล้วอัปไฟล์
         function applyFeatureFlags() {
