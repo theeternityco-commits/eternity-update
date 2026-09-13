@@ -161,7 +161,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         #countdown { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 150px; color: white; display: none; text-shadow: 0 5px 20px rgba(0,0,0,0.5); font-weight: bold;}
         #dots-container { display: flex; gap: 12px; }
         .dot { width: 18px; height: 18px; background: #e0e0e0; border-radius: 50%; transition: all 0.3s ease; }
-        .dot.active { background: #ff3b30; box-shadow: 0 2px 8px rgba(255, 59, 48, 0.4); transform: scale(1.1); }
+        .dot.active { background: #111; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); transform: scale(1.1); }   /* ก๊องขอ 12 กย: จุดบอกลำดับช็อตเป็นสีดำ ไม่ใช่สีแดง */
 
         /* --- Page 4: REVIEW (Printer Animation) --- */
         /* กลุ่มรูป+ปุ่ม จัดกึ่งกลางจอ (สืบทอด justify-content:center จาก .page) */
@@ -327,7 +327,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         .sticker-tray-more b { font-size:17px; font-weight:bold; }
         /* หน้าเลือกสติ๊กเกอร์เต็มจอ */
         .stickerpick-grid { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; width:92%; max-width:620px;
-            max-height:60vh; overflow-y:auto; padding:6px 4px; }
+            max-height:60vh; overflow-y:auto; padding:6px 4px; flex-shrink:0; }
         .stickerpick-item { flex:0 0 auto; width:84px; height:84px; border-radius:14px; background:#fff; border:1px solid #ddd;
             display:flex; align-items:center; justify-content:center; padding:8px; box-sizing:border-box; cursor:pointer; }
         .stickerpick-item:active { transform:scale(0.94); }
@@ -512,7 +512,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             <button class="btn-menu-new" style="padding:14px 22px; font-size:17px;" onclick="addStickerViaPicker()">+ เพิ่ม<span>PNG</span></button>
             <button class="btn-menu-new" id="sticker-select-toggle" style="padding:14px 22px; font-size:17px;" onclick="toggleStickerSelectMode()">เลือกหลายอัน<span>เพื่อลบ</span></button>
         </div>
-        <div id="sticker-mgr-grid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; width:92%; max-width:480px; max-height:40vh; overflow-y:auto; padding:4px;"></div>
+        <div id="sticker-count-line" style="color:#aaa; font-size:13px; margin-bottom:8px;"></div>
+        <div id="sticker-mgr-grid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; width:92%; max-width:480px; max-height:40vh; overflow-y:auto; padding:4px; flex-shrink:0;"></div>
         <button id="sticker-del-selected" style="display:none; margin-top:14px; padding:13px 30px; border-radius:50px; border:2px solid #fff; background:transparent; color:#fff; font-size:16px; font-weight:bold; cursor:pointer;" onclick="deleteSelectedStickers()">ลบที่เลือก (0)</button>
         <div style="width:92%; max-width:480px; margin-top:18px; border-top:1px solid #333; padding-top:14px;">
             <div style="color:#aaa; font-size:13px; margin-bottom:8px;">สติ๊กเกอร์พื้นฐาน — แตะเพื่อซ่อน/แสดง (ลูกค้าทำแบรนด์เองซ่อนได้ แล้วเพิ่มของตัวเอง)</div>
@@ -1600,6 +1601,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             // หน้า review: นับถอยหลัง 60 วิให้ลูกค้าแต่ง/ตัดสินใจ — เข้าหน้าเริ่มใหม่, ออกหน้าหยุด
             if (id === 'page-review') startReviewTimer(pageTimeoutSeconds);
             else stopReviewTimer();
+            if (id === 'page-decorate') startDecoIdle();
+            else { stopDecoIdle(); clearDecorationTimer(); }   // ตัวนับเวลาตกแต่งต้องตายพร้อมหน้า ไม่งั้นเด้งไปปริ้นตอนลูกค้ากลับมาหน้ารีวิว
         }
 
         function toggleOverlay(id, active) {
@@ -3215,21 +3218,65 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             wrap.innerHTML = html;
         }
 
+        // ===== กันเงินหาย (เคสจริงจากกองตรวจ 9 กย) =====
+        // goHome() ล้าง paidQuota/remainingQuota ทิ้ง = เงินที่ลูกค้าโอนมาแล้วหายทั้งก้อน
+        // หน้าเลือกเลย์เอาต์/กรอบ/โหมดกล้อง เดิมหมดเวลา 30 วิแล้วเรียก goHome ทันที
+        // ลูกค้าที่ "จ่ายแล้วแต่ยังไม่ได้รูปสักใบ" จึงเสียเงินฟรีถ้าเลือกช้า (โดยเฉพาะร้านที่มีกรอบเยอะ)
+        // แก้: ต่อเวลาให้อีก 3 รอบพร้อมข้อความเตือนบนจอ แล้วค่อยปล่อยตู้ให้คนถัดไป (ตู้ต้องไม่ค้างถาวรเช่นกัน)
+        const PAID_EXTRA_ROUNDS = 3;
+        function paidUnusedRound() {
+            // ครอบทั้ง "จ่ายแล้วยังไม่ได้รูปเลย" และ "กดถ่ายเพิ่ม ยังเหลือรูปที่จ่ายไว้"
+            return systemMode !== 'event' && remainingQuota > 0;
+        }
+        function paidHoldNote(pageId, text) {
+            const p = document.getElementById(pageId); if (!p) return;
+            let el = p.querySelector('.paid-hold-note');
+            if (!el) {
+                el = document.createElement('div');
+                el.className = 'paid-hold-note';
+                el.style.cssText = 'margin-top:12px; color:#111; font-size:15px; font-weight:bold; text-align:center;';
+                p.appendChild(el);
+            }
+            el.innerText = text || '';
+            el.style.display = text ? '' : 'none';
+        }
+        function restartTimerBar(bar, sec) {
+            if (!bar) return;
+            bar.style.transition = 'none'; bar.style.width = '100%';
+            setTimeout(() => { bar.style.transition = `width ${sec}s steps(17, end)`; bar.style.width = '0%'; }, 50);
+        }
+        // คืนค่า true = ต่อเวลาให้แล้ว (ยังไม่ต้องเด้งกลับ)
+        function holdForPaidCustomer(pageId, bar, sec, state) {
+            if (!paidUnusedRound() || state.extra >= PAID_EXTRA_ROUNDS) return false;
+            state.extra++;
+            // R10: รอบสุดท้ายห้ามบอกว่า "ยังไม่หมดเวลา" — รอบถัดไปเครื่องจะกลับหน้าหลักจริง
+            paidHoldNote(pageId, state.extra >= PAID_EXTRA_ROUNDS
+                ? `ต่อเวลาครั้งสุดท้าย — เหลือ ${remainingQuota} รูปที่จ่ายไว้ กรุณาเลือกภายใน ${sec} วินาทีนะคะ`
+                : `เหลือ ${remainingQuota} รูปที่จ่ายไว้แล้ว — เลือกต่อได้เลยค่ะ ยังไม่หมดเวลา`);
+            restartTimerBar(bar, sec);
+            return true;
+        }
+
         function startFrameTimer(sec) {
             stopFrameTimer();
             const bar = document.getElementById('frame-timer-bar');
             if (bar) { bar.style.transition = 'none'; bar.style.width = '100%'; }
             if (!sec) return;   // ไม่จำกัดเวลา — หลอดค้างเต็ม ไม่นับถอยหลัง ไม่เด้งกลับ
             let remain = sec;
+            const st = { extra: 0 };
             if (bar) setTimeout(() => { bar.style.transition = `width ${sec}s steps(17, end)`; bar.style.width = '0%'; }, 50);
             // ครบเวลาแล้วเด้งกลับหน้า home_video (เดิมเป็น no-op — แถบวิ่งแต่ไม่ทำอะไร)
             frameTimer = setInterval(() => {
                 remain--;
-                if (remain <= 0) { stopFrameTimer(); goHome(); }
+                if (remain <= 0) {
+                    if (holdForPaidCustomer('page-frame', bar, sec, st)) { remain = sec; return; }
+                    stopFrameTimer(); goHome();
+                }
             }, 1000);
         }
 
         function stopFrameTimer() {
+            paidHoldNote('page-frame', '');
             if (frameTimer) { clearInterval(frameTimer); frameTimer = null; }
         }
 
@@ -3241,17 +3288,22 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             if (bar) { bar.style.transition = 'none'; bar.style.width = '100%'; }
             if (!sec) { if (cdEl) cdEl.innerText = ''; return; }   // ไม่จำกัดเวลา — หลอดค้างเต็ม ไม่เด้งกลับ
             let remain = sec;
+            const st = { extra: 0 };
             if (cdEl) cdEl.innerText = remain;
             if (bar) setTimeout(() => { bar.style.transition = `width ${sec}s steps(17, end)`; bar.style.width = '0%'; }, 50);
             layoutTimer = setInterval(() => {
                 remain--;
                 if (cdEl) cdEl.innerText = Math.max(remain, 0);
-                if (remain <= 0) { stopLayoutTimer(); goHome(); }
+                if (remain <= 0) {
+                    if (holdForPaidCustomer('page-layout', bar, sec, st)) { remain = sec; if (cdEl) cdEl.innerText = remain; return; }
+                    stopLayoutTimer(); goHome();
+                }
             }, 1000);
         }
 
         function stopLayoutTimer() {
             if (layoutTimer) { clearInterval(layoutTimer); layoutTimer = null; }
+            paidHoldNote('page-layout', '');
         }
 
         function confirmFrameSelection(idx) {
@@ -3285,15 +3337,20 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             if (bar) { bar.style.transition = 'none'; bar.style.width = '100%'; }
             if (!sec) return;   // ไม่จำกัดเวลา — หลอดค้างเต็ม ไม่เด้งกลับ
             let remain = sec;
+            const st = { extra: 0 };
             if (bar) setTimeout(() => { bar.style.transition = `width ${sec}s steps(17, end)`; bar.style.width = '0%'; }, 50);
             camModeTimer = setInterval(() => {
                 remain--;
-                if (remain <= 0) { stopCamModeTimer(); goHome(); }
+                if (remain <= 0) {
+                    if (holdForPaidCustomer('page-cammode', bar, sec, st)) { remain = sec; return; }
+                    stopCamModeTimer(); goHome();
+                }
             }, 1000);
         }
 
         function stopCamModeTimer() {
             if (camModeTimer) { clearInterval(camModeTimer); camModeTimer = null; }
+            paidHoldNote('page-cammode', '');
         }
 
         // หน้า review: นับถอยหลัง 60 วิ (เวลาให้ลูกค้าแต่ง/ตัดสินใจ) — ครบแล้ว "ปริ้นเลย"
@@ -4510,29 +4567,127 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         let stickerSelectedIdx = new Set();
         function loadUserStickers() { try { const a = JSON.parse(localStorage.getItem('userStickers') || '[]'); if (Array.isArray(a)) userStickers = a; } catch (e) {} }
         const STICKER_STORE_BUDGET = 1200000;   // ตัวอักษร JSON ที่ยอมเก็บ (รูปย่อกรอบใช้ 2.5M, ที่เก็บทั้งหมด ~5M) — ห้ามให้สติกเกอร์กินจนอย่างอื่นเซฟไม่ลง
+        // ก๊องขอ 12 กย: ต้องบอกลูกค้าเป็นตัวเลขชัดๆ ได้ → เพดานต้องเป็น "จำนวน" ไม่ใช่ "พื้นที่"
+        // 50 อัน × 24,000 ตัวอักษร = 1,200,000 = งบเดิมพอดี จึงการันตี 50 อันได้ทุกร้าน ไม่ว่าลายจะละเอียดแค่ไหน
+        // (ก่อนหน้านี้ย่อ 240px แล้วปล่อยให้กินที่ตามจริง → ร้านลายเรียบได้ 150 อัน ร้านลายละเอียดเต็มที่ 15 อัน บอกลูกค้าเป็นตัวเลขไม่ได้)
+        const STICKER_MAX = 50;
+        const STICKER_SLOT_MAX = Math.floor(STICKER_STORE_BUDGET / STICKER_MAX);   // 24,000 ตัวอักษรต่ออัน
+        const STICKER_PX_STEPS = [180, 160, 140, 120, 100, 80];   // 180 = ขนาดที่ยังคมจริงตอนลูกค้าวางครั้งแรก (30% ของความกว้างใบ)
+        // เลือกนามสกุลที่เล็กสุดของขนาดนั้น: WebP เก็บความโปร่งใสได้เหมือน PNG แต่เล็กกว่ามากกับรูปถ่าย
+        // (วัด 12 กย: สติ๊กเกอร์รูปถ่าย 180px → PNG 84,738 / WebP 17,135 ตัวอักษร · ลายเส้น → PNG 7,870 / WebP 2,879)
+        // ไม่มีที่ไหนในโค้ดสมมติว่าสติ๊กเกอร์เป็น PNG — ใช้ผ่าน loadImage()+drawImage() เท่านั้น ไม่เคยส่งเป็นไฟล์ให้ฝั่งแอป
+        // ข้อ R11 (ไฟล์ปริ้น/ประกอบภาพต้องเป็น PNG) มีไว้เพราะ JPEG ทำให้พื้นโปร่งใสหาย — WebP ไม่มีปัญหานี้ (เทสแล้ว อัลฟา = 0 ที่มุมนอก)
+        // WebView เก่าที่แปลง WebP ไม่ได้จะคืน PNG มาแทนตามสเปก → เช็คหัวสตริงแล้วใช้ PNG ตามปกติ ไม่พังและยังการันตี 50 อันเหมือนเดิม
+        function stickerCanvasAt(src, px) {
+            const r = Math.min(1, px / Math.max(src.width, src.height));
+            const c = document.createElement('canvas');
+            c.width = Math.max(1, Math.round(src.width * r));
+            c.height = Math.max(1, Math.round(src.height * r));
+            c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+            return c;
+        }
+        function encodeStickerAt(src, px) {
+            const c = stickerCanvasAt(src, px);
+            let best = c.toDataURL('image/png');
+            try {
+                const wp = c.toDataURL('image/webp', 0.92);
+                if (wp.indexOf('data:image/webp') === 0 && wp.length < best.length) best = wp;
+            } catch (e) { /* แปลง WebP ไม่ได้ = ใช้ PNG */ }
+            c.width = 0; c.height = 0;   // ปล่อยหน่วยความจำทันที
+            return best;
+        }
+        // ย่อให้พอดี "ช่อง" ของมัน — ไล่ลงทีละขั้นจนเข้า ถ้าเล็กสุดแล้วยังไม่พอคืน '' (ลายละเอียดจัดผิดปกติ)
+        function packSticker(dataUrl) {
+            return new Promise(resolve => {
+                let settled = false;
+                const finish = v => { if (!settled) { settled = true; resolve(v); } };
+                // R1: ทุกการรอต้องมีนาฬิกาปลุก — ไฟล์เสียบางแบบไม่ยิงทั้ง onload และ onerror
+                // 30 วิ ไม่ใช่ 4 วิ: ไฟล์ร้าน 6000px (9MB) ถอดรหัสบนแท็บเล็ตช้าได้หลายวินาที ตั้งสั้นไป = ไฟล์ดีโดนปฏิเสธ
+                // (จับเวลาไม่ชนกับการย่อรูป เพราะ JS ทำทีละอย่าง ตัวจับเวลายิงระหว่าง onload ไม่ได้)
+                const timer = setTimeout(() => finish(''), 30000);
+                try {
+                    const img = new Image();
+                    img.onload = () => {
+                        clearTimeout(timer);
+                        if (settled) return;   // หมดเวลาไปแล้ว = ไม่ต้องทำงานเปล่าต่อ
+                        let base = null;
+                        try {
+                            // R15: ย่อจากไฟล์ต้นฉบับ "ครั้งเดียว" แล้วขั้นถัดไปย่อจากตัวที่ย่อแล้ว
+                            // (ไล่ย่อจากต้นฉบับ 6000px ทุกขั้น = WebView ค้าง 1.5 วิบนคอม แท็บเล็ตหลายเท่า — วัดจริง 13 กย)
+                            base = stickerCanvasAt(img, STICKER_PX_STEPS[0]);
+                            for (const px of STICKER_PX_STEPS) {
+                                const u = encodeStickerAt(base, px);
+                                if (u.length + 3 <= STICKER_SLOT_MAX) { finish(u); return; }
+                            }
+                            finish('');
+                        } catch (e) { finish(''); }
+                        finally { if (base) { base.width = 0; base.height = 0; } }
+                    };
+                    img.onerror = () => { clearTimeout(timer); finish(''); };
+                    img.src = dataUrl;
+                } catch (e) { clearTimeout(timer); finish(''); }
+            });
+        }
+        // ร้านที่อัปสติ๊กเกอร์ไว้ก่อนอัปเดตนี้ ของเก่าเป็น 240px ใหญ่เกินช่อง → จัดระเบียบให้ครั้งเดียว
+        // ไม่ทำตรงนี้ เพดาน 50 อันจะไม่จริงสำหรับร้านนั้น (ของเก่ากินที่ไปหมด)
+        let stickerRepackDone = false;
+        let stickerRepacking = false;   // กันกดเพิ่ม/ลบสติ๊กเกอร์ระหว่างจัดระเบียบ (ไม่งั้นอันใหม่หาย หรือลบผิดอัน)
+        function stickerBusy() {
+            if (!stickerRepacking) return false;
+            alert('กำลังจัดระเบียบสติ๊กเกอร์อยู่ รอสักครู่แล้วลองอีกครั้งนะคะ');
+            return true;
+        }
+        async function repackStickersIfNeeded() {
+            if (stickerRepackDone || stickerRepacking) return;
+            if (!userStickers.some(s => typeof s === 'string' && s.length + 3 > STICKER_SLOT_MAX)) { stickerRepackDone = true; return; }
+            stickerRepacking = true;
+            const line = document.getElementById('sticker-count-line');
+            if (line) line.textContent = 'กำลังจัดระเบียบสติ๊กเกอร์...';
+            try {
+                // เดินบน "สำเนา" ห้ามเดินบน array จริง — ร้านกดลบระหว่างรอย่อรูป = ข้ามอันถัดไป แล้วเซฟทับจนอันที่ลบกลับมา
+                // (เช็คแค่จำนวนไม่พอ: ลบ 1 + ข้าม 1 จำนวนเท่าเดิมพอดี — กองตรวจ 13 กย)
+                const snap = userStickers.slice();
+                const out = [];
+                for (const s of snap) {
+                    if (typeof s !== 'string' || !s || s.length + 3 <= STICKER_SLOT_MAX) { out.push(s); continue; }
+                    const packed = await packSticker(s);
+                    out.push(packed || s);   // ย่อไม่ได้ = เก็บของเดิมไว้ ห้ามทำสติ๊กเกอร์ของร้านหาย
+                }
+                if (userStickers.length !== snap.length || userStickers.some((v, k) => v !== snap[k])) {
+                    // คลังถูกแก้ระหว่างทาง = ทิ้งผลรอบนี้ ไม่แตะของเดิม · ยังไม่ถือว่าเสร็จ เปิดหน้าครั้งหน้าค่อยจัดใหม่
+                } else {
+                    const before = userStickers;
+                    userStickers = out;
+                    if (saveUserStickers()) stickerRepackDone = true;
+                    else userStickers = before;   // เซฟไม่ลง = คืนของเดิมทั้งชุด และยังไม่ถือว่าเสร็จ (ลบของออกแล้วเปิดใหม่ค่อยลองอีก)
+                }
+            } finally {
+                stickerRepacking = false;
+                renderStickerManager();
+            }
+        }
         function saveUserStickers() {
             try { localStorage.setItem('userStickers', JSON.stringify(userStickers)); return true; }
             catch (e) { alert('พื้นที่เก็บสติ๊กเกอร์เต็ม — ลองลบบางอันออกก่อนนะคะ'); return false; }
         }
-        function openStickerManager() { stickerSelectMode = false; stickerSelectedIdx.clear(); renderStickerManager(); renderBaseManager(); syncDecoTimeUI(); }
+        function openStickerManager() { stickerSelectMode = false; stickerSelectedIdx.clear(); renderStickerManager(); renderBaseManager(); syncDecoTimeUI(); repackStickersIfNeeded(); }
         function addStickerViaPicker() {
-            pickImage(dataUrl => {
-                const img = new Image();
-                img.onload = () => {
-                    const max = 240; let w = img.width, h = img.height;
-                    if (w > max || h > max) { const r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
-                    const c = document.createElement('canvas'); c.width = w; c.height = h;
-                    c.getContext('2d').drawImage(img, 0, 0, w, h);
-                    const url = c.toDataURL('image/png');
-                    if (JSON.stringify(userStickers.concat([url])).length > STICKER_STORE_BUDGET) {
-                        alert('สติ๊กเกอร์เต็มแล้ว (' + userStickers.length + ' อัน) — ลบบางอันออกก่อนนะคะ');
-                        return;
-                    }
-                    userStickers.push(url);
-                    if (!saveUserStickers()) userStickers.pop();   // เซฟไม่ลง = ถอนอันที่เพิ่งเพิ่ม (เฉพาะตรงนี้ที่รู้ว่าเพิ่มอะไร)
-                    renderStickerManager();
-                };
-                img.src = dataUrl;
+            if (stickerBusy()) return;
+            if (userStickers.length >= STICKER_MAX) { alert('สติ๊กเกอร์ครบ ' + STICKER_MAX + ' อันแล้วค่ะ — ลบอันที่ไม่ใช้ออกก่อนนะคะ'); return; }
+            pickImage(async dataUrl => {
+                // เช็คซ้ำหลังเลือกไฟล์ เผื่อค้างหน้าเลือกไฟล์ไว้นานแล้วสถานะเปลี่ยนไปแล้ว
+                if (stickerBusy()) return;
+                if (userStickers.length >= STICKER_MAX) { alert('สติ๊กเกอร์ครบ ' + STICKER_MAX + ' อันแล้วค่ะ — ลบอันที่ไม่ใช้ออกก่อนนะคะ'); return; }
+                const url = await packSticker(dataUrl);
+                if (!url) { alert('ใช้ไฟล์นี้ไม่ได้ค่ะ (ลายละเอียดเยอะเกินไป หรือไฟล์เสีย) ลองไฟล์ PNG อื่นนะคะ'); return; }
+                // กันชนท้ายสุด: ร้านที่ของเก่ายังจัดระเบียบไม่ได้ อาจล้นงบก่อนถึง 50 อัน
+                if (JSON.stringify(userStickers.concat([url])).length > STICKER_STORE_BUDGET) {
+                    alert('พื้นที่เก็บเต็มก่อนถึง ' + STICKER_MAX + ' อัน (ตอนนี้ ' + userStickers.length + ' อัน) — ลบอันที่ไม่ใช้ออกก่อนนะคะ');
+                    return;
+                }
+                userStickers.push(url);
+                if (!saveUserStickers()) userStickers.pop();   // เซฟไม่ลง = ถอนอันที่เพิ่งเพิ่ม (เฉพาะตรงนี้ที่รู้ว่าเพิ่มอะไร)
+                renderStickerManager();
             });
         }
         function renderStickerManager() {
@@ -4550,7 +4705,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                     cell.addEventListener('click', () => { if (stickerSelectedIdx.has(idx)) stickerSelectedIdx.delete(idx); else stickerSelectedIdx.add(idx); renderStickerManager(); });
                 } else {
                     const x = document.createElement('div'); x.className = 'sticker-mgr-del'; x.textContent = '×';
-                    x.addEventListener('click', (e) => { e.stopPropagation(); userStickers.splice(idx, 1); saveUserStickers(); renderStickerManager(); });
+                    x.addEventListener('click', (e) => { e.stopPropagation(); if (stickerBusy()) return; userStickers.splice(idx, 1); saveUserStickers(); renderStickerManager(); });
                     cell.appendChild(x);
                 }
                 box.appendChild(cell);
@@ -4559,9 +4714,12 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             if (delBtn) { delBtn.style.display = stickerSelectMode ? 'block' : 'none'; delBtn.textContent = `ลบที่เลือก (${stickerSelectedIdx.size})`; }
             const selBtn = document.getElementById('sticker-select-toggle');
             if (selBtn) selBtn.innerHTML = stickerSelectMode ? 'ยกเลิก<span>เลือก</span>' : 'เลือกหลายอัน<span>เพื่อลบ</span>';
+            const cntLine = document.getElementById('sticker-count-line');
+            if (cntLine) cntLine.textContent = userStickers.length + ' / ' + STICKER_MAX + ' อัน';
         }
-        function toggleStickerSelectMode() { stickerSelectMode = !stickerSelectMode; stickerSelectedIdx.clear(); renderStickerManager(); }
+        function toggleStickerSelectMode() { if (stickerBusy()) return; stickerSelectMode = !stickerSelectMode; stickerSelectedIdx.clear(); renderStickerManager(); }
         function deleteSelectedStickers() {
+            if (stickerBusy()) return;
             if (stickerSelectedIdx.size === 0) return;
             Array.from(stickerSelectedIdx).sort((a, b) => b - a).forEach(i => userStickers.splice(i, 1));
             saveUserStickers(); stickerSelectMode = false; stickerSelectedIdx.clear(); renderStickerManager();
@@ -4609,6 +4767,35 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             }, 1000);
         }
         function clearDecorationTimer() { if (decoTimer) { clearInterval(decoTimer); decoTimer = null; } const el = document.getElementById('deco-countdown'); if (el) el.innerText = ''; }
+
+        // หน้าตกแต่งรูปเคยเป็น "ทางตัน": ค่าเริ่มต้นของทุกตู้คือ "ตกแต่งได้ตลอดไป" (decorationTime = 61)
+        // ลูกค้ากด STICKER แล้วเดินหนี = ตู้ค้างที่รูปของคนก่อน พร้อมปุ่ม PRINT และโควตาที่ยังไม่ได้ใช้
+        // แก้: ใส่นาฬิกาปลุกแบบเดียวกับหน้าอื่น — ไม่มีใครแตะจอนานพอ = ปริ้นให้เลย (ลูกค้าจ่ายมาแล้ว เหมือนหน้ารีวิว)
+        // แตะจอเมื่อไหร่ = เริ่มนับใหม่ (คนที่ตั้งใจตกแต่งนานๆ ไม่โดนตัด)
+        let decoIdleTimer = null;
+        function startDecoIdle() {
+            stopDecoIdle();
+            if (decorationTime > 0 && decorationTime <= 60) return;   // ร้านตั้งเวลาไว้แล้ว → ใช้ตัวนับเดิม
+            const sec = pageTimeoutSeconds ? pageTimeoutSeconds * 2 : 0;   // ร้านตั้ง "ไม่จำกัด" → ไม่ต้องมีตัวนี้
+            if (!sec) return;
+            let remain = sec;
+            decoIdleTimer = setInterval(() => {
+                remain--;
+                if (remain <= 0) { stopDecoIdle(); confirmPrint(); }
+            }, 1000);
+        }
+        function stopDecoIdle() { if (decoIdleTimer) { clearInterval(decoIdleTimer); decoIdleTimer = null; } }
+        (function bindDecoIdleReset() {
+            const bump = () => { if (decoIdleTimer) startDecoIdle(); };   // นับใหม่เฉพาะตอนตัวนับทำงานอยู่ (= อยู่หน้าตกแต่ง)
+            // หน้าเลือกสติ๊กเกอร์เต็มจอ (+N ทั้งหมด) เป็น overlay แยก ไม่ได้อยู่ใน page-decorate
+            // ไม่ฟังตรงนั้นด้วย = ลูกค้ากำลังเลื่อนหาสติ๊กเกอร์ แต่เครื่องนึกว่าไม่มีคนแล้วสั่งปริ้นเลย (กองตรวจ 13 กย)
+            ['page-decorate', 'overlay-stickerpick'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.addEventListener('pointerdown', bump, true);
+                el.addEventListener('touchstart', bump, true);
+            });
+        })();
 
         // เปิดหน้าตกแต่งสติ๊กเกอร์ (จากปุ่ม STICKER ในหน้า review) — โชว์รูปใหญ่ + ถาดสติ๊กเกอร์
         function openDecorate() {
@@ -5110,8 +5297,10 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             const qrEl = document.getElementById('qrcode');
             const notice = document.getElementById('qr-expiry-notice');
             if (hasPrinter) {
-                document.getElementById('print-status').innerText = 'รับรูปได้จาก QR บนสลิป';
-                qrEl.innerHTML = '';
+                // เดิมลบ QR บนจอทิ้ง → ถ้ากระดาษไม่ออก (กระดาษหมด/สายหลุด/เครื่องปิด) ลูกค้าที่จ่ายแล้วไม่ได้อะไรเลย
+                // ตอนนี้โชว์ไว้ด้วยเสมอ: กระดาษออกก็ไม่เสียหาย ไม่ออกก็ยังสแกนจากจอได้
+                document.getElementById('print-status').innerText = 'QR อยู่บนสลิปแล้ว — ถ้ากระดาษไม่ออก สแกนจากจอนี้ได้เลยค่ะ';
+                if (url) renderScreenQr(qrEl, url, 250); else qrEl.innerHTML = '';
             } else {
                 document.getElementById('print-status').innerText = 'สแกนรับภาพ';
                 renderScreenQr(qrEl, url, 250);
