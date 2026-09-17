@@ -1255,11 +1255,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 return m ? parseInt(m[1], 10) : 0;
             } catch (e) { return 0; }
         }
-        // print adjust แยกรูปถ่าย/กรอบ + ความคม = ฟีเจอร์ของรอบ 1.29 เหมือนกัน → เปิดตามเลขแอปอย่างเดียว
-        // (ตู้ 1.28 ต้องเห็นแผงเดิม กด reset/save แบบเดิมแล้วได้ใบแบบเดิม — กองตรวจ 17 ก.ย.)
+        // print adjust แยกรูปถ่าย/กรอบ + ความคม — เปิดให้ "ทุกตู้" (ก๊องสั่ง 17 ก.ย. 2569: ฟีเจอร์นี้ไม่ผูกกับรอบ 1.29)
+        // เป็น HTML ล้วน ไม่ต้องพึ่งแอปรุ่นใหม่ · ร้านที่ไม่แตะ = ใช้ค่าเดิมทั้งสองส่วน ใบปริ้นเหมือนเดิมทุก pixel
+        // ทางโค้ดแบบเดิม (return false) เก็บไว้ในทุกฟังก์ชันของแผง — วันไหนต้องปิดชั่วคราว แก้บรรทัดเดียวตรงนี้
         function paSplitOn() {
-            if (!window.Android) return true;
-            return appApkCode() >= LAYOUT_MIN_APK;
+            return true;
         }
         function layoutSystemOn() {
             if (!LAYOUT_EDIT_ENABLED) return false;
