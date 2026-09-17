@@ -113,6 +113,10 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         .layout-icon { background: #f0f0f0; margin: 0 auto; border: 2px solid #ddd; border-radius: 4px; }
         /* รูปคนตัวอย่างของแต่ละเลย์เอาต์ (ใส่ไฟล์ static/layout_*.png ก็จะโชว์แทนกล่องเทา) */
         .layout-photo { display:block; margin:0 auto; width:auto; max-width:100%; max-height:28vh; height:auto; border-radius:10px; }
+        /* การ์ดเกิน 4 ใบ (ระบบ layout edit): 3 ต่อแถว เลื่อนแนวตั้งได้ — เนื้อหายังกึ่งกลางหน้าตามเดิม */
+        .layout-grid.grid-wrap3 { grid-template-columns: 1fr 1fr 1fr; max-height: 52vh; overflow-y: auto; padding: 4px; }
+        .layout-grid.grid-wrap3 .layout-photo { max-height: 15vh; }
+        .layout-grid.grid-wrap3 .layout-opt h3 { font-size: 16px; }
 
         .i-solo { width: 100px; height: 133px; }
         .i-strip { width: 75px; height: 135px; display: flex; flex-direction: column; gap: 4px; } .i-strip div { width: 100%; height: 32%; background: #ccc; border-radius: 2px; }
@@ -195,6 +199,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             background: transparent;
         }
 
+        /* ใบ custom ยาวพิเศษ: ย่อพรีวิวให้เห็น "ทั้งใบ" ภายใน ~56vh (ใบเดิม 4 แบบไม่เข้าเงื่อนไข ไม่โดนแตะ)
+           + ใบ custom ไร้กรอบพื้นขาวล้วน ให้มีเส้นขอบจางๆ ไม่งั้นกลืนกับพื้นหลังจนดูรูปลอยพัง (เคสก๊อง 4 กย) */
+        .paper-scroll-area.tall-paper { width: auto; max-width: 92vw; }
+        .paper-scroll-area.tall-paper .receipt-image { width: auto; max-height: 56vh; margin: 0 auto; }
+        .receipt-image.custom-paper { border: 1px solid #e2e2e2; }
         .receipt-image {
             width: 100%; display: block; background: #fff;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
@@ -405,6 +414,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-syscheck', true)">system<span>check</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-data', true)">data<span>สถิติเครื่อง</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-frames', true)">frame<span>edit</span></button>
+            <button class="btn-menu-new" id="btn-opt-layout" style="display:none;" onclick="toggleOverlay('overlay-layout-edit', true)">layout<span>edit</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-price-edit', true)">price<span>edit</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-print-adjust', true)">print<span>adjust b&amp;w</span></button>
             <button class="btn-menu-new" onclick="toggleOverlay('overlay-home-video', true)">home video<span>edit</span></button>
@@ -654,10 +664,17 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 <b style="color:#fff;">ขาวดำ</b> = ปริ้นกระดาษ ถ้าไม่อัปจะใช้สีปริ้นแทน)
             </p>
             <button class="btn-cat" id="btn-frame-choice" onclick="toggleFrameChoiceUI()" style="width:95%; max-width:500px; margin:0 0 10px;">โชว์หน้าเลือกกรอบให้ลูกค้า<span id="frame-choice-state">เปิด</span></button>
-            <div style="display:flex; gap:12px; width:95%; max-width:500px;">
-                <button class="btn-cat" id="cat-sg" onclick="selectEditCategory('sg')">Solo &amp; Grid<span>4:5</span></button>
-                <button class="btn-cat" id="cat-st" onclick="selectEditCategory('st')">Strip &amp; Twin<span>9:16</span></button>
+            <!-- ชั้นบนสุด (ระบบ layout edit): Basic Layout = กรอบกลุ่มเดิม / Your Layout = กรอบของเลย์เอาต์ที่ร้านสร้างเอง
+                 ซ่อนไว้จนกว่า LAYOUT_EDIT_ENABLED — ธงปิด = หน้านี้หน้าตาเดิมเป๊ะ -->
+            <div id="frame-scope-row" style="display:none; gap:12px; width:95%; max-width:500px; margin:0 0 10px;">
+                <button class="btn-cat" data-fscope="basic" onclick="setFrameScope('basic')">Basic Layout</button>
+                <button class="btn-cat" data-fscope="custom" onclick="setFrameScope('custom')">Your Layout</button>
             </div>
+            <div id="frame-cat-basic-row" style="display:flex; gap:12px; width:95%; max-width:500px;">
+                <button class="btn-cat" id="cat-sg" data-fcat="sg" onclick="selectEditCategory('sg')">Solo &amp; Grid<span>4:5</span></button>
+                <button class="btn-cat" id="cat-st" data-fcat="st" onclick="selectEditCategory('st')">Strip &amp; Twin<span>9:16</span></button>
+            </div>
+            <div id="frame-cat-custom-row" style="display:none; flex-direction:column; gap:8px; width:95%; max-width:500px;"></div>
             <div class="frame-grid-edit" id="frame-edit-buttons" style="margin-top:14px;"></div>
 
             <!-- ชั้นรูป: ปกติใช้ AUTO (เดาจากกรอบว่าเจาะรูช่องรูปไหม) — กันเหนียวบังคับเองได้ถ้าออโต้เดาพลาด -->
@@ -675,6 +692,58 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             <button class="btn-menu-new" onclick="resetAllFrames()" style="font-size:16px; padding:15px; margin-top:14px; border-color:#551a1a;">reset all<span>frames</span></button>
         </div>
         <button class="btn-back-link" onclick="toggleOverlay('overlay-frames', false)">back</button>
+    </div>
+
+    <!-- layout edit: เปิด/ปิดเลย์เอาต์เดิม + เปลี่ยนรูปปก + Your Layout (ร้านออกแบบเอง — จ่าย 1 สร้าง 1, อนุมัติใน Firebase)
+         ปุ่มเข้าเมนูนี้ซ่อนอยู่หลัง LAYOUT_EDIT_ENABLED -->
+    <div id="overlay-layout-edit" class="overlay">
+        <div class="boot-logo-text">receipt<span>photobooth</span></div>
+        <div class="overlay-subtitle">layout edit</div>
+        <div class="overlay-menu" style="gap:10px;">
+            <p style="color:#888; font-size:13px; margin:0 0 4px; text-align:center; max-width:520px;">
+                เปิด/ปิดเลย์เอาต์ที่ให้ลูกค้าเลือก + เปลี่ยนรูปปกการ์ดได้ ·
+                <b>Your Layout</b> = เลย์เอาต์ที่ร้านออกแบบเอง (กว้าง 576px ยาวสูงสุด 45 ซม.)
+                สร้างเสร็จต้อง <b>ส่งขออนุมัติ + ชำระค่าบริการ</b> ก่อนถึงจะโชว์ให้ลูกค้า — อนุมัติ 1 ครั้งต่อ 1 เลย์เอาต์
+                · อยากใส่กรอบให้ใบที่สร้างเอง ไปที่เมนู <b>frame edit → Your Layout</b>
+            </p>
+            <div class="frame-edit-title">Basic Layout</div>
+            <div id="layout-basic-rows" style="width:95%; max-width:520px; display:flex; flex-direction:column; gap:8px;"></div>
+            <div class="frame-edit-title" style="margin-top:14px;">Your Layout</div>
+            <div id="layout-custom-rows" style="width:95%; max-width:520px; display:flex; flex-direction:column; gap:8px;"></div>
+            <button class="btn-menu-new" onclick="openLayoutEditor('')" style="margin-top:8px;">+ create layout</button>
+            <button class="btn-menu-new" onclick="importLayoutCode()" style="margin-top:8px;">ใส่รหัสเลย์เอาต์</button>
+        </div>
+        <button class="btn-back-link" onclick="toggleOverlay('overlay-layout-edit', false)">back</button>
+    </div>
+
+    <!-- editor เลย์เอาต์ custom: เวทีผืน 576×H ย่อสเกลพอดีจอ ลาก=ย้าย มุมขวาล่าง=ย่อขยาย (นิ้วหรือเมาส์) -->
+    <div id="overlay-layout-editor" class="overlay" style="z-index:110;">
+        <div class="overlay-subtitle" style="margin-bottom:14px;">layout editor</div>
+        <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:center; width:95%; max-width:760px;">
+            <input id="le-name" type="text" maxlength="30" placeholder="ชื่อเลย์เอาต์..."
+                style="flex:1; min-width:180px; padding:10px 14px; border-radius:10px; border:2px solid #333; background:#191919; color:#fff; font-size:15px; outline:none;">
+            <div style="display:flex; align-items:center; gap:8px; color:#ccc; font-size:14px;">
+                ยาว <b id="le-cm" style="color:#fff;">20 ซม.</b>
+                <!-- step=1: ก่อนหน้านี้ขยับทีละ 40 ทำให้ตั้งความยาวตามไฟล์ดีไซน์จริงไม่ได้
+                     (เช่น 2235 จะเด้งเป็น 2240) — ใบงานแบรนด์ต้องตรงเป๊ะกับไฟล์ที่เขาส่งมา -->
+                <input id="le-height" type="range" min="400" max="3600" step="1" value="1600" oninput="leSetHeight(this.value)" style="width:160px; accent-color:#fff;">
+                <input id="le-height-num" type="number" min="400" max="3600" step="1" value="1600" onchange="leSetHeightTyped(this)"
+                    style="width:74px; padding:6px 8px; border-radius:8px; border:1.5px solid #333; background:#191919; color:#fff; font-size:13px; text-align:center; outline:none;" title="ความยาวใบเป็น px (8 px = 1 มม.)">
+            </div>
+            <button onclick="leAddBox()" style="padding:10px 14px; border-radius:10px; border:1.5px solid #fff; background:#1a1a1a; color:#fff; font-weight:bold; font-size:14px; cursor:pointer;">＋ เพิ่มช่อง</button>
+            <button onclick="leRotateBox()" style="padding:10px 14px; border-radius:10px; border:1.5px solid #fff; background:#1a1a1a; color:#fff; font-weight:bold; font-size:14px; cursor:pointer;">⟳ หมุนรูป</button>
+            <button onclick="leDeleteBox()" style="padding:10px 14px; border-radius:10px; border:1px solid #555; background:#1a1a1a; color:#999; font-size:14px; cursor:pointer;">ลบช่องที่เลือก</button>
+        </div>
+        <p style="color:#777; font-size:12px; margin:8px 0 6px; text-align:center;">กว้างคงที่ 576px (72มม.) · แตะช่องเพื่อเลือก ลากเพื่อย้าย ดึงมุมขวาล่างเพื่อย่อขยาย · <b style="color:#bbb;">ใบยาว: ลากตรงพื้นที่ว่างสีขาวเพื่อเลื่อนดูส่วนล่าง</b> · ช่องเลขมากจะทับช่องเลขน้อยถ้าวางซ้อนกัน · <b style="color:#bbb;">⟳ หมุนรูป</b> = รูปลูกค้าหันตามกรอบที่ออกแบบแนวนอน (หัวตัวเลขในช่อง = ด้านบนของรูป)</p>
+        <!-- ห้ามใส่ touch-action:none ที่ตัวเวที — จะบล็อกการเลื่อนนิ้วบนแท็บเล็ตทั้งผืน (เคสก๊อง 4 กย: ใบ 30 ซม. เลื่อนลงไม่ได้)
+             ช่องรูป/ปุ่มย่อขยายมี touch-action:none ของตัวเองอยู่แล้ว → แตะช่อง = ลาก, แตะพื้นว่าง = เลื่อน -->
+        <div id="le-stage-wrap" style="max-height:52vh; overflow-y:auto; border:1px solid #333; border-radius:8px; padding:8px; background:#161616;">
+            <div id="le-stage" style="position:relative; background:#fff; border-radius:4px;"></div>
+        </div>
+        <div class="action-bar" style="margin-top:16px;">
+            <button class="btn-main btn-retake" onclick="leCancel()">cancel</button>
+            <button class="btn-main btn-print" onclick="leDone()">done</button>
+        </div>
     </div>
 
     <div id="overlay-qr-edit" class="overlay">
@@ -853,15 +922,21 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         <div class="overlay-menu" style="gap: 10px;">
             <p style="color:#888; font-size:13px; margin:0 0 2px; text-align:center; max-width:440px;">
                 ปรับโทนรูป <b style="color:#fff;">เฉพาะตอนปริ้นกระดาษ (ขาวดำ)</b> เท่านั้น — ไม่กระทบรูปสีดิจิทัล/QR
-                <br>เลื่อนแล้วดูตัวอย่างข้างล่างว่าจะปริ้นออกมาประมาณไหน
+                <br><span id="pa-hint-legacy">เลื่อนแล้วดูตัวอย่างข้างล่างว่าจะปริ้นออกมาประมาณไหน</span><span id="pa-hint-split" style="display:none;">เลือกส่วนที่จะปรับ แล้วเลื่อนดูตัวอย่างข้างล่าง · <b style="color:#fff;">รูปถ่าย</b> กับ <b style="color:#fff;">กรอบ</b> ตั้งค่าแยกกันได้</span>
             </p>
+            <div id="pa-tabs" style="display:none; gap:10px; width:100%;">
+                <button id="pa-tab-photo" class="btn-menu-new" onclick="paSelectPart('photo')" style="flex:1; font-size:16px; padding:12px;">รูปถ่าย<span>เฉพาะรูปจากกล้อง</span></button>
+                <button id="pa-tab-frame" class="btn-menu-new" onclick="paSelectPart('frame')" style="flex:1; font-size:16px; padding:12px;">กรอบ<span>+ สติ๊กเกอร์ / ลายเส้น</span></button>
+            </div>
             <canvas id="bw-preview-canvas" width="360" height="300" style="width:100%; max-width:360px; align-self:center; background:#fff; border-radius:10px; border:1px solid #333;"></canvas>
             <label style="color: #888;">Offset (สว่าง / มืด): <b id="bw-offset-val" style="color:#1dd1a1;">0</b></label>
             <input type="range" id="input-bw-offset" min="-120" max="120" value="0" step="1" oninput="onBwSliderInput()" style="width:100%;">
             <label style="color: #888;">Contrast (ความต่างโทน): <b id="bw-contrast-val" style="color:#1dd1a1;">0</b></label>
             <input type="range" id="input-bw-contrast" min="-100" max="100" value="0" step="1" oninput="onBwSliderInput()" style="width:100%;">
+            <label id="bw-sharp-label" style="color: #888; display:none;">Sharpness (ความคม): <b id="bw-sharp-val" style="color:#1dd1a1;">0</b></label>
+            <input type="range" id="input-bw-sharp" min="0" max="100" value="0" step="1" oninput="onBwSliderInput()" style="width:100%; display:none;">
             <div style="display:flex; gap:12px; width:100%;">
-                <button class="btn-menu-new" onclick="resetBwAdjust()" style="flex:1; font-size:16px; padding:14px; border-color:#444;">reset<span>0 / 0</span></button>
+                <button class="btn-menu-new" onclick="resetBwAdjust()" style="flex:1; font-size:16px; padding:14px; border-color:#444;">reset<span id="pa-reset-sub">0 / 0</span></button>
                 <button class="btn-menu-new" onclick="savePrintAdjust()" style="flex:2;">save<span>print adjust</span></button>
             </div>
         </div>
@@ -964,7 +1039,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     <!-- LAYOUT -->
     <div id="page-layout" class="page">
         <h2>Choose Layout</h2>
-        <div class="layout-grid">
+        <!-- การ์ดถูกวาดใหม่โดย renderLayoutChooser() ทุกครั้งที่เข้าหน้านี้ (ธง layout edit ปิด = ได้ 4 ใบเดิมเป๊ะ)
+             การ์ดข้างในนี้ = ค่าตั้งต้นเผื่อ JS พังกลางทาง จะยังเห็น 4 เลย์เอาต์เดิม -->
+        <div class="layout-grid" id="layout-cards">
             <div class="layout-opt" onclick="selectLayout('solo')"><img class="layout-photo" src="static/frames/layout_solo.png" onerror="this.style.display='none';this.nextElementSibling.style.display='';"><div class="layout-icon i-solo" style="display:none;"></div><h3>Solo</h3></div>
             <div class="layout-opt" onclick="selectLayout('strip')"><img class="layout-photo" src="static/frames/layout_strip.png" onerror="this.style.display='none';this.nextElementSibling.style.display='';"><div class="layout-icon i-strip" style="display:none;"><div></div><div></div><div></div></div><h3>Strip</h3></div>
             <div class="layout-opt" onclick="selectLayout('grid')"><img class="layout-photo" src="static/frames/layout_grid.png" onerror="this.style.display='none';this.nextElementSibling.style.display='';"><div class="layout-icon i-grid" style="display:none;"><div></div><div></div><div></div><div></div></div><h3>Grid</h3></div>
@@ -1159,6 +1236,42 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         // false = ค้นผ่าน iTunes → QR ลิงก์เปิดเพลงใน Spotify (ไม่ต้องใช้คีย์ = อัปออนไลน์ได้บน apk 20)
         // true  = Spotify Code จริง (ต้องมีคีย์ฝัง native ในแอป — ใช้ได้เฉพาะ APK ที่ฝังคีย์)
         const SONG_USE_SPOTIFY = false;
+
+        // ===== สวิตช์ระบบ Layout Edit (ซ่อนไว้ — ยังไม่เปิดให้ลูกค้าเห็น) =====
+        // เปิด/ปิดเลย์เอาต์เดิม + เปลี่ยนรูปปก + ร้านสร้างเลย์เอาต์เอง (จ่าย 1 สร้าง 1 อนุมัติใน Firebase)
+        // false = ปุ่ม layout edit ในเมนู option ซ่อน + หน้าเลือกเลย์เอาต์ลูกค้าเหมือนเดิมทุกประการ
+        // true สำหรับ 1.29 = ตั้งใจ (ก๊อง 8 กย): ทุกตู้เห็นเมนู แต่ลูกค้าหน้าตู้ไม่เห็นใบสั่งทำ
+        // จนกว่าก๊องจะอนุมัติตู้นั้น → ตัวระบบอนุมัติทำหน้าที่เป็นสวิตช์รายตู้อยู่แล้ว ไม่ต้องมีธงแยก
+        const LAYOUT_EDIT_ENABLED = true;
+        // html 51 (17 ก.ย. 2569) ไฟล์เดียวใช้ทั้ง fleet และตู้ 1.29 — ตู้ที่ยังเป็นแอป 1.28 ต้องหน้าตาเหมือน html 34 เป๊ะ
+        // ระบบเลย์เอาต์จึงเปิดเฉพาะแอป apk 67 ขึ้นไป (67 ตัวเทสก๊อง · 68 Dyson · 69 fleet 30 ก.ย. = เปิดเองเมื่ออัป APK)
+        // กันพลาดอีกชั้น: ตู้ไหนมีใบ "อนุมัติแล้ว" อยู่ในเครื่อง = ตู้ 1.29 แน่นอน → เปิดเสมอ แม้อ่านเลขแอปไม่ได้
+        //   (ไม่งั้นวันที่อ่านเลขพลาด ตู้งานแบรนด์จะหาใบที่ซื้อไว้ไม่เจอหน้างาน)
+        // เปิดในเบราว์เซอร์ (ไม่มีสะพานแอป) = โหมดทดสอบของเรา → เปิด
+        const LAYOUT_MIN_APK = 67;
+        function appApkCode() {
+            try {
+                const m = ((window.Android && window.Android.getAppVersion && window.Android.getAppVersion()) || '').match(/apk\s*(\d+)/);
+                return m ? parseInt(m[1], 10) : 0;
+            } catch (e) { return 0; }
+        }
+        // print adjust แยกรูปถ่าย/กรอบ + ความคม = ฟีเจอร์ของรอบ 1.29 เหมือนกัน → เปิดตามเลขแอปอย่างเดียว
+        // (ตู้ 1.28 ต้องเห็นแผงเดิม กด reset/save แบบเดิมแล้วได้ใบแบบเดิม — กองตรวจ 17 ก.ย.)
+        function paSplitOn() {
+            if (!window.Android) return true;
+            return appApkCode() >= LAYOUT_MIN_APK;
+        }
+        function layoutSystemOn() {
+            if (!LAYOUT_EDIT_ENABLED) return false;
+            if (!window.Android) return true;
+            if (appApkCode() >= LAYOUT_MIN_APK) return true;
+            try { return customLayouts.some(L => L && L.status === 'approved'); } catch (e) { return false; }
+        }
+        // ข้ามระบบขออนุมัติ (เคยเปิดไว้ตอนเทสรอบแรก 4 กย): สร้างปุ๊บใช้ได้ทันที + แก้ใบที่ใช้อยู่ได้
+        // ⚠ ตัวปล่อยจริงต้องเป็น false เสมอ (true = ทุกตู้สร้างใบใช้ฟรี ระบบ "จ่าย 1 สร้าง 1" พังทั้ง fleet)
+        // ปิดถาวรตั้งแต่ 10 กย 2569 = ค่าที่ก๊องเลือกสำหรับ 1.29 (อนุมัติจริง กดทีละใบ เก็บเงินรายตู้)
+        // หมายเหตุ: ทางรับ "รหัสเลย์เอาต์" ไม่อ่านธงนี้เลย ใบที่รับมาเป็นร่างเสมอ (กันธงหลุดอีกชั้น)
+        const LAYOUT_TEST_NO_APPROVAL = false;
         let selectedSong = null;        // { title, artist, url, art } เพลงที่เลือกไว้ของรอบนี้
         let songSearchSeq = 0;          // กันผลค้นหาเก่ามาทับใหม่ (race)
 
@@ -1292,20 +1405,36 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             ['sg', 'st'].forEach(cat => { for (let i = 1; i <= frameCounts[cat]; i++) if (!frames[cat][i]) frames[cat][i] = { full: '', print: '' }; });
         }
         function saveFrameCounts() { try { localStorage.setItem('frameCount_sg', String(frameCounts.sg)); localStorage.setItem('frameCount_st', String(frameCounts.st)); } catch (e) {} }
+        function saveFrameCountFor(cat) { try { localStorage.setItem('frameCount_' + cat, String(frameCounts[cat])); } catch (e) {} }
+        // เตรียมหมวดกรอบให้พร้อมใช้ (sg/st มีมาแต่แรก — หมวดของเลย์เอาต์ custom สร้างตามตัว, ดีฟอลต์ 0 = ไม่มีกรอบ)
+        function ensureFrameCat(cat) {
+            if (!frames[cat]) frames[cat] = {};
+            if (!frameThumbs[cat]) frameThumbs[cat] = {};
+            if (!framePrintHas[cat]) framePrintHas[cat] = {};
+            if (frameCounts[cat] === undefined) {
+                let n = 0;
+                try { const v = parseInt(localStorage.getItem('frameCount_' + cat), 10); if (v >= 0) n = Math.min(30, v); } catch (e) {}
+                frameCounts[cat] = n;
+                for (let i = 1; i <= n; i++) if (!frames[cat][i]) frames[cat][i] = { full: '', print: '' };
+            }
+        }
         function setShowFrameChoice(on) { showFrameChoice = !!on; try { localStorage.setItem('showFrameChoice', on ? '1' : '0'); } catch (e) {} }
         function addFrameStyle(cat) {
+            ensureFrameCat(cat);
             if (frameCounts[cat] >= 30) { alert('เพิ่มได้สูงสุด 30 กรอบต่อกลุ่มแล้วนะคะ'); return; }
             frameCounts[cat]++; const i = frameCounts[cat]; frames[cat][i] = { full: '', print: '' };
             frameThumbs[cat][i] = 'none'; savePrintHas(cat, i, false);   // ช่องใหม่ยังว่าง — จำแค่ในแรม (นโยบาย: ไม่บันทึก 'none' ถาวร)
-            saveFrameCounts(); renderFrameEditButtons();
+            saveFrameCountFor(cat); renderFrameEditButtons();
         }
         function removeLastFrameStyle(cat) {
-            if (frameCounts[cat] <= 1) { alert('ต้องมีอย่างน้อย 1 กรอบ'); return; }
+            // กลุ่มเดิมต้องเหลืออย่างน้อย 1 / เลย์เอาต์ custom ลบได้จนหมด (0 = กลับเป็นใบไร้กรอบ)
+            const min = isCustomLayout(cat) ? 0 : 1;
+            if (frameCounts[cat] <= min) { alert(min === 0 ? 'ไม่มีกรอบให้ลบแล้วค่ะ' : 'ต้องมีอย่างน้อย 1 กรอบ'); return; }
             const i = frameCounts[cat];
             if (!confirm(`ลบกรอบล่าสุด (#${i}) ของกลุ่มนี้?`)) return;
-            window.Android.saveFramePart(i, cat + '_full', ''); window.Android.saveFramePart(i, cat + '_print', '');
+            saveFramePart(i, cat + '_full', ''); saveFramePart(i, cat + '_print', '');
             delete frames[cat][i]; clearFrameThumb(cat, i); frameCounts[cat]--;
-            saveFrameCounts(); renderFrameEditButtons();
+            saveFrameCountFor(cat); renderFrameEditButtons();
         }
         let displayReceiptDataURL = ''; // รูปใบเสร็จสี (ใช้โชว์ + อัป Drive ทำ QR)
         let editCategory = null;        // กลุ่มที่กำลังแก้ในหน้า frame edit ('sg' | 'st')
@@ -1322,12 +1451,89 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         let btDevices = [];  // รายชื่อเครื่อง BT ที่จับคู่ไว้ (ใช้ index อ้างอิงตอนเลือก)
 
         // กลุ่มของเลย์เอาต์: solo/grid = 4:5 (sg), strip/twin = 9:16 (st)
-        function categoryOf(layout) { return (layout === 'solo' || layout === 'grid') ? 'sg' : 'st'; }
+        // ===== เลย์เอาต์ที่ร้านสร้างเอง (Your Layout) =====
+        // เก็บเฉพาะ metadata ใน localStorage (ไม่มีรูป — รูปปกแยกคีย์ต่างหาก) โครงต่ออัน:
+        // { v:1, id:'cl_…', name, totalH(400-2400), boxes:[{x,y,w,h}…] (ลำดับ array = ลำดับถ่าย = เลขช่อง),
+        //   status:'draft'|'pending'|'approved'|'rejected', hash, reqId, enabled, createdAt, submittedAt, approvedAt, note }
+        const CUSTOM_LAYOUT_MAX = 100;     // เพดานจำนวนเลย์เอาต์ custom ต่อเครื่อง (ก๊องปลดเป็น 100 — 4 กย 2569)
+        const CUSTOM_BOX_MIN = 96;         // ช่องรูปเล็กสุด 96px = 12มม. (เล็กกว่านี้ปริ้นออกมามองไม่รู้เรื่อง)
+        const CUSTOM_H_MIN = 400, CUSTOM_H_MAX = 3600;   // ความยาวใบ 5–45 ซม. (8px/มม. — ก๊องขยายเป็น 45 ซม. 4 กย 2569)
+        let customLayouts = [];
+        function loadCustomLayouts() {
+            try {
+                const arr = JSON.parse(localStorage.getItem('customLayouts') || '[]');
+                if (Array.isArray(arr)) customLayouts = arr.filter(L => L && L.id && Array.isArray(L.boxes));
+            } catch (e) { customLayouts = []; }
+            try { customLayouts.forEach(L => ensureFrameCat(L.id)); } catch (e) {}   // เตรียมหมวดกรอบของแต่ละใบ
+        }
+        function saveCustomLayouts() {
+            try { localStorage.setItem('customLayouts', JSON.stringify(customLayouts)); } catch (e) {}
+        }
+        function isCustomLayout(layout) { return typeof layout === 'string' && layout.indexOf('cl_') === 0; }
+        function getCustomLayout(id) { return customLayouts.find(L => L.id === id) || null; }
+        // เรียง "ใหม่สุดก่อน" (ก๊องขอ 10 กย: template ใหม่ต้องขึ้นบนสุดเสมอ) — เรียงตอนแสดงเท่านั้น ไม่แตะลำดับที่เก็บ
+        // ใช้ลำดับที่เพิ่มเข้ามา (ทุกทางสร้างใบใหม่ต่อท้ายเสมอ ไม่มีที่ไหนสลับลำดับ) — ไม่ใช้ createdAt
+        // เพราะนาฬิกาแท็บเล็ตถอยหลังได้ (ตั้งเวลาผิด/ยังไม่ซิงก์เน็ต) แล้วใบใหม่จะไปอยู่ใต้ใบเก่า
+        function customLayoutsNewestFirst() {
+            return customLayouts.slice().reverse();
+        }
+
+        // เปิด/ปิดเลย์เอาต์เดิม 4 แบบ (ไม่มีคีย์ = เปิดหมด — ตู้เก่าไม่เห็นความต่าง)
+        const BUILTIN_LAYOUTS = ['solo', 'strip', 'grid', 'twin'];
+        let layoutEnabled = { solo: 1, strip: 1, grid: 1, twin: 1 };
+        function loadLayoutEnabled() {
+            try {
+                const o = JSON.parse(localStorage.getItem('layoutEnabled') || 'null');
+                if (o) BUILTIN_LAYOUTS.forEach(k => { layoutEnabled[k] = (o[k] === 0 || o[k] === false) ? 0 : 1; });
+            } catch (e) {}
+        }
+        function saveLayoutEnabled() {
+            try { localStorage.setItem('layoutEnabled', JSON.stringify(layoutEnabled)); } catch (e) {}
+        }
+
+        // หมวดกรอบของเลย์เอาต์ custom = ตัว id ของมันเอง ('cl_…') — กรอบแยกรายใบ (ก๊องเคาะ 2 กย 2569: custom มีกรอบได้)
+        // ระบบกรอบเดิมทุกท่อ (frameFull/frameCounts/รูปย่อ/ไฟล์ native frame_{i}_{cat}_{part}.png) รับคีย์นี้ได้เลย
+        // กันบั๊กเงียบ: ห้ามปล่อยให้ตก 'st' — กรอบ 9:16 จะโดนยืดทับใบ custom จนเละ
+        function categoryOf(layout) {
+            if (isCustomLayout(layout)) return layout;
+            return (layout === 'solo' || layout === 'grid') ? 'sg' : 'st';
+        }
         function currentCategory() { return categoryOf(currentLayout); }
 
         // เรขาคณิตใบเสร็จ + ช่องรูป (ใช้ร่วมกันทั้งตอน crop กล้องและตอนสร้างรูป เพื่อให้ตรงกันเป๊ะ)
         // ช่องรูป (window) = พื้นที่ที่รูปถ่ายอยู่ มี margin เว้นข้าง — รูปอยู่ใต้กรอบ กรอบ PNG ต้อง "เจาะรู" ช่องนี้ให้โปร่งใส รูปถึงจะโผล่
+        // ===== หมุนรูปในช่อง (ก๊องขอ 17 ก.ย. 2569 — ลูกค้าแบรนด์ขอ) =====
+        // ช่องของเลย์เอาต์สั่งทำเลือกหมุนรูปได้ 0/90/180/270° ตามเข็ม — ใช้กับกรอบที่ออกแบบแนวนอน
+        // แล้วหมุนลงใบเสร็จ (เช่น boarding pass): รูปลูกค้าจะหันตามกรอบ อ่านรู้เรื่องตอนถือใบตะแคง
+        // ลูกค้ายังเห็นตัวเองตรงปกติบนจอกล้อง (ถ่ายตามสัดส่วนที่สลับกว้าง/สูงแล้ว) — หมุนตอนวางลงใบเท่านั้น
+        // เก็บ r ในช่อง "เฉพาะตอนไม่ใช่ 0": ใบเดิมทุกใบ JSON เหมือนเดิมทุกตัวอักษร
+        //   → layoutHash/การอนุมัติที่ก๊องกดไปแล้วไม่หลุด และรหัสเลย์เอาต์ของใบไม่หมุนยังเป็น v2 ตัวเดิม
+        function boxRot(b) {
+            const r = ((((parseInt(b && b.r, 10) || 0) % 360) + 360) % 360);
+            return (r === 90 || r === 180 || r === 270) ? r : 0;
+        }
+        function boxCopy(b) {
+            const o = { x: b.x, y: b.y, w: b.w, h: b.h };
+            const r = boxRot(b);
+            if (r) o.r = r;
+            return o;
+        }
+
         function getLayoutGeom(layout) {
+            // เลย์เอาต์ custom: ช่องรูปวางอิสระตามที่ร้านออกแบบ ไม่มีหัว/ท้ายกรอบ (H_HDR/H_FTR = 0
+            // ทำให้แถบดำ fallback ใน drawFrame สูงศูนย์ = ใบขาวล้วน+รูป โดยไม่ต้องแก้ drawFrame)
+            if (isCustomLayout(layout)) {
+                const L = getCustomLayout(layout);
+                if (L) {
+                    const b0 = L.boxes[0] || { w: 528, h: 660 };
+                    return { W: 576, M: 0, G: 0, H_HDR: 0, H_FTR: 0, winW: 576, winH: L.totalH,
+                             cols: 1, rows: L.boxes.length, cellW: b0.w, cellH: b0.h, xOffset: 0,
+                             boxes: L.boxes.map(boxCopy),
+                             totalH: L.totalH, custom: true };
+                }
+                // หา id ไม่เจอ (โดนลบ?) → ถอยไป strip กันตู้ค้าง
+                layout = 'strip';
+            }
             const W = 576;       // กว้างใบเสร็จ (80mm)
             const M = 24;        // margin ซ้าย-ขวา (เฉพาะรูปถ่าย) — ลดลงให้รูปใหญ่ขึ้น
             const G = 14;        // ช่องไฟระหว่างรูป
@@ -1354,7 +1560,23 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             }
             const blockW = cols * cellW + (cols - 1) * G;
             const xOffset = M + (winW - blockW) / 2;  // จัดบล็อกรูปกึ่งกลางช่อง (strip จะถูกเซนเตอร์)
-            return { W, M, G, H_HDR, H_FTR, winW, winH, cols, rows, cellW, cellH, xOffset, totalH: H_HDR + winH + H_FTR };
+            // boxes = ตำแหน่งช่องรูปทุกช่อง คำนวณด้วยสูตรกริดชุดเดียวกับที่ compose ใช้มาตลอด
+            // (เลย์เอาต์เดิม 4 แบบผลลัพธ์ต้องตรงเดิมพิกเซลต่อพิกเซล — แค่ย้ายสูตรมารวมที่เดียว)
+            const boxes = [];
+            const nShots = (layout === 'solo') ? 1 : (layout === 'strip') ? 3 : (layout === 'grid') ? 4 : 6;
+            for (let i = 0; i < nShots; i++) {
+                const col = i % cols, row = Math.floor(i / cols);
+                boxes.push({ x: xOffset + col * (cellW + G), y: H_HDR + row * (cellH + G), w: cellW, h: cellH });
+            }
+            return { W, M, G, H_HDR, H_FTR, winW, winH, cols, rows, cellW, cellH, xOffset, boxes, totalH: H_HDR + winH + H_FTR };
+        }
+
+        // สัดส่วนช่องรูปของช็อตที่ idx (เลย์เอาต์เดิมทุกช่องเท่ากัน / custom แต่ละช่องไม่เท่ากันได้)
+        function shotRatio(geom, idx) {
+            const b = geom.boxes[Math.min(idx, geom.boxes.length - 1)] || { w: geom.cellW, h: geom.cellH };
+            const r = boxRot(b);
+            // ช่องหมุน 90/270 = ถ่ายตามสัดส่วนสลับด้าน (ลูกค้าเห็นตัวเองตรง) แล้วค่อยหมุนตอนวางลงใบ
+            return (r === 90 || r === 270) ? b.h / b.w : b.w / b.h;
         }
 
         // เช็คว่าช่องนั้นมีรูปกรอบจริงไหม (กันไฟล์ว่างที่คืนค่ามาเป็น "data:image/png;base64," เปล่าๆ)
@@ -1377,8 +1599,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         let framePrintHas = { sg: {}, st: {} };      // ช่องนี้มีกรอบขาวดำหรือไม่
         const _thKey = (cat, i) => 'fthumb_' + cat + '_' + i;
         const _tpKey = (cat, i) => 'fthumbp_' + cat + '_' + i;
+        // รายชื่อหมวดกรอบทั้งหมดของเครื่องนี้: กลุ่มเดิม 2 + เลย์เอาต์ custom รายใบ
+        function allFrameCats() { return ['sg', 'st'].concat(customLayouts.map(L => L.id)); }
         function loadFrameThumbs() {
-            ['sg', 'st'].forEach(cat => {
+            allFrameCats().forEach(cat => {
+                ensureFrameCat(cat);
                 for (let i = 1; i <= frameCounts[cat]; i++) {
                     try {
                         const v = localStorage.getItem(_thKey(cat, i));
@@ -1410,13 +1635,16 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         // ⚠️ กฎก๊อง 16 สค 2026 (เคลียร์กันแล้ว): "ไฟล์กรอบจริง" ที่ใช้ประกอบ/ปริ้น = PNG เท่านั้นตลอดกาล (ภาพเจาะรู ต้องมีพื้นโปร่งใส)
         //   ส่วน "รูปย่อไว้โชว์บนการ์ด" (thumbJpeg=true) ก๊องอนุมัติให้เป็น JPEG พื้นขาว — เล็กลง 5-10 เท่า
         //   ร้านกรอบ 40+ อันเก็บลงเครื่องได้ครบในงบ 2.5MB สร้างครั้งเดียวจบ ไม่ต้องสร้างใหม่ทุกเช้า (ต้นเหตุจอ BASIC)
-        function shrinkImage(dataUrl, maxW, thumbJpeg) {
+        // maxW = เพดาน "ด้านที่ยาวที่สุด" (ถูกแล้วสำหรับรูปย่อ) · maxWidth = เพดานความกว้างอีกชั้น (ไฟล์กรอบจริง)
+        function shrinkImage(dataUrl, maxW, thumbJpeg, maxWidth) {
             return new Promise(resolve => {
                 try {
                     const img = new Image();
                     img.onload = () => {
                         try {
-                            const sc = Math.min(1, maxW / Math.max(img.width, img.height));
+                            let sc = Math.min(1, maxW / Math.max(img.width, img.height));
+                            // ใบเสร็จกว้าง 576 เสมอ เก็บกว้างเกิน 2 เท่าไปก็ทิ้งเปล่า แถมเปลืองแรมตอนถอดรหัส
+                            if (maxWidth && img.width * sc > maxWidth) sc = maxWidth / img.width;
                             const w = Math.max(1, Math.round(img.width * sc));
                             const hh = Math.max(1, Math.round(img.height * sc));
                             const c = document.createElement('canvas'); c.width = w; c.height = hh;
@@ -1433,10 +1661,68 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 } catch (e) { resolve(''); }
             });
         }
+        // อ่านขนาดจริงของรูป (ใช้เช็คว่าไฟล์กรอบที่ร้านอัปเป็นแนวนอนหรือแนวตั้ง)
+        function imageSize(dataUrl) {
+            return new Promise(resolve => {
+                try {
+                    const im = new Image();
+                    im.onload = () => resolve({ w: im.width, h: im.height });
+                    im.onerror = () => resolve(null);
+                    im.src = dataUrl;
+                } catch (e) { resolve(null); }
+            });
+        }
+        // หมุนรูปตามเข็ม 90 องศา — ไฟล์ดีไซน์งานแบรนด์ (เช่น boarding pass) ส่งมาเป็นแนวนอนเสมอ
+        function rotateImage90(dataUrl) {
+            return new Promise(resolve => {
+                try {
+                    const img = new Image();
+                    img.onload = () => {
+                        try {
+                            const c = document.createElement('canvas');
+                            c.width = img.height; c.height = img.width;
+                            const ctx = c.getContext('2d');
+                            ctx.translate(c.width, 0); ctx.rotate(Math.PI / 2);
+                            ctx.drawImage(img, 0, 0);
+                            const out = c.toDataURL('image/png');   // ต้องเป็น PNG — ช่องรูปที่เจาะไว้ต้องยังโปร่งใส
+                            c.width = 0; c.height = 0;
+                            resolve(out && out.indexOf('data:image/png') === 0 ? out : '');   // แคนวาสจองแรมไม่ได้ → ได้ "data:," = ถือว่าพัง
+                        } catch (e) { resolve(''); }
+                    };
+                    img.onerror = () => resolve('');
+                    img.src = dataUrl;
+                } catch (e) { resolve(''); }
+            });
+        }
+        // หมวดกรอบ -> เลย์เอาต์ที่ใช้วัดขนาดใบจริง (หมวด custom ใช้ id ของใบตรงๆ)
+        function catLayoutKey(cat) { return (cat === 'sg') ? 'solo' : (cat === 'st') ? 'strip' : cat; }
+        // ===== เพดานย่อ "ไฟล์กรอบจริง" (ไม่ใช่รูปย่อ) =====
+        // shrinkImage ย่อโดยยึดด้านที่ยาวที่สุด — ถ้าป้อนเพดานคงที่ 1400 ให้ใบยาว
+        // กรอบ 576×2235 จะถูกเก็บเหลือ 361×1400 แล้วโดนยืดกลับเป็น 576 ตอนปริ้น = ตัวหนังสือเบลอทั้งใบ
+        // (ใบเดิม 4 แบบสูงสุด 1339 จึงไม่เคยโดน — ใบสั่งทำเป็นใบแรกที่ข้ามเส้น 1400)
+        // เพดานจึงต้องโตตาม "ความยาวใบจริง" ของหมวดนั้น แล้วกันความกว้างไว้อีกชั้นด้วย FRAME_MAX_STORE_W
+        const FRAME_MAX_STORE_W = 1152;   // 2 เท่าของกระดาษจริง (576) — เกินนี้เก็บไปก็ทิ้ง
+        function frameStoreCap(cat) {
+            let h = FRAME_MAX_W;
+            try { h = getLayoutGeom(catLayoutKey(cat)).totalH || FRAME_MAX_W; } catch (e) {}
+            return Math.max(FRAME_MAX_W, h);
+        }
         // อ่านไฟล์เต็มของกรอบจากในเครื่อง — เรียกเฉพาะตอนจะใช้จริง ห้ามเก็บค้างไว้
+        // ===== ที่เก็บไฟล์กรอบ =====
+        // ตู้จริง: เก็บเป็นไฟล์จริงผ่านสะพาน Android (ทนปิดแอป/รีบูต)
+        // เบราว์เซอร์ (หน้าทดลอง): ไม่มีสะพาน → เก็บไว้ในแรมของหน้าเว็บ พอให้กดลองได้ครบวงจร แล้วหายไปตอนรีเฟรช
+        const _webFrames = {};
+        function saveFramePart(i, key, data) {
+            // ตู้จริง: เรียกสะพานตรงๆ ห้ามครอบ try — ถ้าบันทึกไม่สำเร็จ error ต้องเด้งถึงคนเรียกเหมือนเดิม
+            // (เคยครอบไว้ แล้วอัปไม่สำเร็จกลับขึ้น "บันทึกสำเร็จ" — กองตรวจ 10 กย จับได้)
+            if (window.Android && window.Android.saveFramePart) { window.Android.saveFramePart(i, key, data); return; }
+            if (data) _webFrames[i + '_' + key] = data; else delete _webFrames[i + '_' + key];
+        }
         function frameFull(cat, i, part) {
-            try { return (window.Android && window.Android.getFramePart) ? window.Android.getFramePart(i, cat + '_' + part) : ''; }
-            catch (e) { return ''; }
+            try {
+                if (window.Android && window.Android.getFramePart) return window.Android.getFramePart(i, cat + '_' + part);
+            } catch (e) { return ''; }
+            return _webFrames[i + '_' + cat + '_' + part] || '';
         }
         function frameThumbOf(cat, i) {
             const t = frameThumbs[cat][i];
@@ -1468,7 +1754,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             if (_thumbJobRunning) return;
             _thumbJobRunning = true;
             try {
-                for (const cat of ['sg', 'st']) {
+                for (const cat of allFrameCats()) {
+                    ensureFrameCat(cat);
                     for (let i = 1; i <= frameCounts[cat]; i++) {
                         if (frameThumbs[cat][i] !== undefined) continue;
                         await ensureFrameThumb(cat, i);
@@ -1508,6 +1795,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         // ปลดหมุดหน้าจอทันทีที่โหลดไฟล์ใหม่ — ห้ามรอให้ร้านกดเข้าโหมดก่อน
         // (เครื่องที่ถูกปักหมุดจากแพตช์ก่อนหน้า พอดึงอัปเดตนี้ปุ๊บต้องปริ้นได้ทันที ดู R14)
         setTimeout(() => { try { if (window.Android && window.Android.setKioskPin) window.Android.setKioskPin(false); } catch (e) {} }, 0);
+        setTimeout(() => { loadCustomLayouts(); loadLayoutEnabled(); loadCoverBudget(); }, 0);   // โหลดเลย์เอาต์ custom + สวิตช์เปิดปิด + งบรูปปก
+        setTimeout(checkLayoutApprovalsOnBoot, 6000);   // มีใบรอตรวจค้างอยู่ → เช็คสถานะเงียบๆ หลังบูต (ครั้งเดียว)
 
         // ซ่อน/โชว์ UI ตามสวิตช์ฟีเจอร์ — เปิดฟิชอายแค่เปลี่ยน FISHEYE_ENABLED = true แล้วอัปไฟล์
         function applyFeatureFlags() {
@@ -1522,6 +1811,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             refreshAddSongBtn();   // ปุ่ม add the song ตาม SONG_ENABLED + addMusicOn
             const spSec = document.getElementById('spotify-key-section');   // ช่องใส่คีย์ Spotify โชว์เฉพาะโหมด Spotify Code
             if (spSec) spSec.style.display = SONG_USE_SPOTIFY ? '' : 'none';
+            const lbtn = document.getElementById('btn-opt-layout');
+            if (lbtn) lbtn.style.display = layoutSystemOn() ? '' : 'none';   // ปุ่ม layout edit (ซ่อนจนกว่าจะเปิดระบบ)
         }
 
         // ===== Device Lock / License =====
@@ -1591,7 +1882,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             // หน้าเลือก layout: เริ่มนับถอยหลัง auto-cancel ทุกครั้งที่เข้า, ออกจากหน้าเมื่อไหร่หยุดทันที
             if (id === 'page-quantity') { applyPriceVisibility(); startQuantityTimer(); }   // อัปเดตการโชว์ราคาทุกครั้งที่เข้าหน้าเลือกจำนวน + เด้งกลับเองถ้าถูกทิ้งไว้
             else stopQuantityTimer();
-            if (id === 'page-layout') startLayoutTimer(pageTimeoutSeconds);
+            if (id === 'page-layout') { try { renderLayoutChooser(); } catch (e) {} startLayoutTimer(pageTimeoutSeconds); }
             else stopLayoutTimer();
             // หน้า "Choose Your Style" มี auto-cancel — เข้าหน้านี้เริ่มจับเวลาใหม่ (กดback จากหน้าเลือกกล้องก็กลับมาทำงาน), ออกหน้าหยุดทันที
             if (id === 'page-frame') startFrameTimer(pageTimeoutSeconds);
@@ -1608,7 +1899,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         function toggleOverlay(id, active) {
             document.getElementById(id).classList.toggle('active', active);
             if (id === 'overlay-qr-edit' && active) { loadKioskSettings(); loadQrEditUI(); refreshMoneyInUI(); refreshPayQrUI(); renderRelayUI(); renderHubUI(); }
-            if (id === 'overlay-frames' && active) selectEditCategory(editCategory || 'sg');
+            if (id === 'overlay-frames' && active) openFrameEdit();
+            if (id === 'overlay-layout-edit' && active) { renderLayoutEditUI(); checkLayoutApprovals(false); }
             if (id === 'overlay-price-edit' && active) { loadPriceInputs(); renderPlanQrRows(); }
             if (id === 'overlay-print-adjust' && active) loadBwAdjustPanel();
             if (id === 'overlay-printer-setup' && active) loadPrinterSetup();
@@ -2020,44 +2312,172 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             return v < 0 ? 0 : (v > 255 ? 255 : v);
         }
 
+        // ===== Print adjust แยก "รูปถ่าย" กับ "กรอบ" + ความคม (ก๊องขอ 17 ก.ย. 2569) =====
+        // รูปถ่าย = รูปจากกล้องในช่อง · กรอบ = ไฟล์กรอบ/แถบหัวท้าย + สติ๊กเกอร์ + ลายเส้น + พื้นกระดาษ
+        // เก็บใน localStorage (ค่าตั้งเล็กๆ — R5) เพราะสะพานเดิมของแอปรับได้แค่ offset/contrast ชุดเดียว
+        // ร้านที่ยังไม่เคยกดบันทึกแบบใหม่ = ใช้ค่าเดิม (ทั้งใบ) กับทั้งสองส่วน → ใบปริ้นเหมือนเดิมทุกพิกเซล
+        const PA_KEY = 'printAdjustV2';
+        function paClampInt(v, lo, hi) { v = parseInt(v, 10); return isNaN(v) ? 0 : Math.max(lo, Math.min(hi, v)); }
+        function paNorm(p) { return { o: paClampInt(p && p.o, -120, 120), c: paClampInt(p && p.c, -100, 100), s: paClampInt(p && p.s, 0, 100) }; }
+        function paSame(a, b) { return a.o === b.o && a.c === b.c && a.s === b.s; }
+        function getPrintAdjust() {
+            if (!paSplitOn()) { const lg = paNorm({ o: bwOffset, c: bwContrast, s: 0 }); return { photo: lg, frame: { o: lg.o, c: lg.c, s: 0 } }; }
+            try {
+                const j = JSON.parse(localStorage.getItem(PA_KEY) || 'null');
+                if (j && j.photo && j.frame) return { photo: paNorm(j.photo), frame: paNorm(j.frame) };
+            } catch (e) {}
+            const legacy = { o: bwOffset, c: bwContrast, s: 0 };
+            return { photo: paNorm(legacy), frame: paNorm(legacy) };
+        }
+        // ความคม = unsharp mask 3x3 บนภาพเทา: v + k × (v − ค่าเฉลี่ยรอบตัว) · สไลด์ 0..100 → k 0..2
+        // kAt(i) = ความแรงของพิกเซล i (แยกส่วนรูป/กรอบได้) · ภาพต้องเป็นเทาแล้ว (อ่าน channel R ช่องเดียว)
+        function sharpenGray(im, W, H, kAt) {
+            const d = im.data, n = W * H, g = new Uint8ClampedArray(n);
+            for (let i = 0, p = 0; i < n; i++, p += 4) g[i] = d[p];
+            for (let y = 0; y < H; y++) {
+                const ya = (y > 0 ? y - 1 : y) * W, yb = y * W, yc = (y < H - 1 ? y + 1 : y) * W;
+                for (let x = 0; x < W; x++) {
+                    const i = yb + x, k = kAt(i);
+                    if (!k) continue;
+                    const xa = x > 0 ? x - 1 : x, xc = x < W - 1 ? x + 1 : x;
+                    const avg = (g[ya + xa] + g[ya + x] + g[ya + xc] + g[yb + xa] + g[i] + g[yb + xc] + g[yc + xa] + g[yc + x] + g[yc + xc]) / 9;
+                    let v = g[i] + k * (g[i] - avg);
+                    v = v < 0 ? 0 : (v > 255 ? 255 : v);
+                    const p = i * 4;
+                    d[p] = d[p + 1] = d[p + 2] = Math.round(v);
+                }
+            }
+        }
+
+        let paWork = null;          // ค่าที่กำลังแก้ในแผง { photo:{o,c,s}, frame:{o,c,s} } — ยังไม่บันทึก
+        let paPart = 'photo';       // แท็บที่เลือกอยู่
         function loadBwAdjustPanel() {
-            document.getElementById('input-bw-offset').value = bwOffset;
-            document.getElementById('input-bw-contrast').value = bwContrast;
-            document.getElementById('bw-offset-val').innerText = bwOffset;
-            document.getElementById('bw-contrast-val').innerText = bwContrast;
-            drawBwPreview(bwOffset, bwContrast);
+            const split = paSplitOn();
+            const show = (id, on, disp) => { const el = document.getElementById(id); if (el) el.style.display = on ? (disp || '') : 'none'; };
+            show('pa-tabs', split, 'flex'); show('bw-sharp-label', split); show('input-bw-sharp', split);
+            show('pa-hint-split', split, 'inline'); show('pa-hint-legacy', !split, 'inline');
+            const rs = document.getElementById('pa-reset-sub'); if (rs) rs.textContent = split ? 'ส่วนนี้' : '0 / 0';
+            const cv = document.getElementById('bw-preview-canvas'); if (cv) { const h = split ? 380 : 300; if (cv.height !== h) cv.height = h; }
+            if (!split) {
+                // ตู้ 1.28: ทางเดิมของ html 34 ทุกบรรทัด
+                document.getElementById('input-bw-offset').value = bwOffset;
+                document.getElementById('input-bw-contrast').value = bwContrast;
+                document.getElementById('bw-offset-val').innerText = bwOffset;
+                document.getElementById('bw-contrast-val').innerText = bwContrast;
+                drawBwPreview(bwOffset, bwContrast, 0);
+                return;
+            }
+            paWork = getPrintAdjust();
+            paPart = 'photo';
+            paShowPart();
+        }
+        function paShowPart() {
+            const s = paWork[paPart];
+            document.getElementById('input-bw-offset').value = s.o;
+            document.getElementById('input-bw-contrast').value = s.c;
+            document.getElementById('input-bw-sharp').value = s.s;
+            document.getElementById('bw-offset-val').innerText = s.o;
+            document.getElementById('bw-contrast-val').innerText = s.c;
+            document.getElementById('bw-sharp-val').innerText = s.s;
+            [['photo', 'pa-tab-photo'], ['frame', 'pa-tab-frame']].forEach(([k, id]) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const on = (k === paPart);
+                el.style.borderColor = on ? '#1dd1a1' : '#444';
+                el.style.boxShadow = on ? '0 0 0 3px #1dd1a1' : '';
+                el.style.opacity = on ? '1' : '0.55';
+            });
+            drawBwPreview(s.o, s.c, s.s);
+        }
+        function paReadSliders() {
+            if (!paWork) paWork = getPrintAdjust();
+            paWork[paPart] = paNorm({
+                o: document.getElementById('input-bw-offset').value,
+                c: document.getElementById('input-bw-contrast').value,
+                s: document.getElementById('input-bw-sharp').value
+            });
+        }
+        function paSelectPart(part) {
+            if (part !== 'photo' && part !== 'frame') return;
+            paReadSliders();          // เก็บค่าของแท็บเดิมไว้ก่อนสลับ
+            paPart = part;
+            paShowPart();
         }
 
         function onBwSliderInput() {
-            const o = parseInt(document.getElementById('input-bw-offset').value, 10);
-            const c = parseInt(document.getElementById('input-bw-contrast').value, 10);
-            document.getElementById('bw-offset-val').innerText = o;
-            document.getElementById('bw-contrast-val').innerText = c;
-            drawBwPreview(o, c);
+            if (!paSplitOn()) {
+                const o = parseInt(document.getElementById('input-bw-offset').value, 10);
+                const c = parseInt(document.getElementById('input-bw-contrast').value, 10);
+                document.getElementById('bw-offset-val').innerText = o;
+                document.getElementById('bw-contrast-val').innerText = c;
+                drawBwPreview(o, c, 0);
+                return;
+            }
+            paReadSliders();
+            const s = paWork[paPart];
+            document.getElementById('bw-offset-val').innerText = s.o;
+            document.getElementById('bw-contrast-val').innerText = s.c;
+            document.getElementById('bw-sharp-val').innerText = s.s;
+            drawBwPreview(s.o, s.c, s.s);
         }
 
         function resetBwAdjust() {
-            document.getElementById('input-bw-offset').value = 0;
-            document.getElementById('input-bw-contrast').value = 0;
-            onBwSliderInput();
+            if (!paSplitOn()) {
+                document.getElementById('input-bw-offset').value = 0;
+                document.getElementById('input-bw-contrast').value = 0;
+                onBwSliderInput();
+                return;
+            }
+            if (!paWork) paWork = getPrintAdjust();
+            paWork[paPart] = { o: 0, c: 0, s: 0 };   // รีเซ็ตเฉพาะส่วนที่เลือกอยู่
+            paShowPart();
         }
 
         function savePrintAdjust() {
-            bwOffset = parseInt(document.getElementById('input-bw-offset').value, 10) || 0;
-            bwContrast = parseInt(document.getElementById('input-bw-contrast').value, 10) || 0;
-            window.Android.savePrintAdjust(bwOffset, bwContrast);
+            if (!paSplitOn()) {
+                bwOffset = parseInt(document.getElementById('input-bw-offset').value, 10) || 0;
+                bwContrast = parseInt(document.getElementById('input-bw-contrast').value, 10) || 0;
+                window.Android.savePrintAdjust(bwOffset, bwContrast);
+                toggleOverlay('overlay-print-adjust', false);
+                return;
+            }
+            paReadSliders();
+            const val = { photo: paNorm(paWork.photo), frame: paNorm(paWork.frame) };
+            try {
+                localStorage.setItem(PA_KEY, JSON.stringify(val));
+                const back = JSON.parse(localStorage.getItem(PA_KEY) || 'null');   // R5: อ่านกลับมาตรวจก่อนบอกว่าบันทึกแล้ว
+                if (!back || !back.photo || !back.frame || !paSame(paNorm(back.photo), val.photo) || !paSame(paNorm(back.frame), val.frame)) throw new Error('verify');
+            } catch (e) {
+                alert('บันทึกค่าปริ้นไม่สำเร็จ — ที่เก็บในเครื่องเต็ม ลองลบกรอบ/สติ๊กเกอร์ที่ไม่ใช้แล้วกดบันทึกใหม่นะคะ');
+                return;
+            }
+            // ส่งค่าส่วน "รูปถ่าย" ให้แอปจำไว้ด้วย (สะพานเดิม) — เผื่อวันไหนย้อนกลับไปใช้หน้าจอรุ่นเก่า ยังได้ค่าที่ใกล้เคียง
+            bwOffset = val.photo.o; bwContrast = val.photo.c;
+            try { window.Android.savePrintAdjust(bwOffset, bwContrast); } catch (e) {}
             toggleOverlay('overlay-print-adjust', false);
         }
 
         // วาด "กระดานเทียบสีเทา" (ตารางช่องเทา 0..100% + แถบไล่เฉด) แล้วใส่ค่า offset/contrast
         // ให้เห็นตัวอย่างว่าปริ้นออกมาประมาณไหน — เลียนแบบกระดานเทียบสีที่ก๊องส่งมา
-        function drawBwPreview(offset, contrast) {
+        function drawBwPreview(offset, contrast, sharp) {
             const cv = document.getElementById('bw-preview-canvas');
             if (!cv) return;
             const ctx = cv.getContext('2d');
-            const W = cv.width, H = cv.height;
+            const band = cv.height > 300 ? 80 : 0;   // แคนวาสสูง 380 (แผงแยกส่วน) = 80px ล่างเป็นแถบตัวอย่างความคม
+            const W = cv.width, H = cv.height - band;
             ctx.fillStyle = '#fff';
-            ctx.fillRect(0, 0, W, H);
+            ctx.fillRect(0, 0, W, cv.height);
+            if (band) {
+                // แถบตัวอย่างความคม: ตัวหนังสือ + เส้นบาง + วงไล่เฉดนุ่มๆ (เห็นผลของ sharpness ชัดกว่าช่องเทาเรียบ) — วาดเป็นเทาล้วน
+                ctx.fillStyle = '#000'; ctx.font = 'bold 22px sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+                ctx.fillText('The Eternity', 12, H + 26);
+                ctx.font = '13px sans-serif';
+                ctx.fillText('ตัวอย่างความคม 0123456789', 12, H + 58);
+                for (let i = 0; i < 9; i++) { ctx.fillStyle = i % 2 ? '#fff' : '#555'; ctx.fillRect(220 + i * 5, H + 10, 5, 60); }
+                const gr = ctx.createRadialGradient(322, H + 40, 4, 322, H + 40, 30);
+                gr.addColorStop(0, '#eee'); gr.addColorStop(1, '#333');
+                ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(322, H + 40, 30, 0, Math.PI * 2); ctx.fill();
+            }
 
             // โซนซ้าย = ตารางช่องเทา (0%..100%) | โซนขวา = แถบไล่เฉดต่อเนื่อง (มืด -> สว่าง)
             const barW = 56, gap = 12;
@@ -2079,13 +2499,15 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 ctx.fillRect(bx, y, barW, 1);
             }
 
-            // ใส่ค่า offset/contrast ทับทั้งภาพ = ตัวอย่างผลตอนปริ้นจริง
-            const im = ctx.getImageData(0, 0, W, H);
+            // ใส่ค่า offset/contrast (+ ความคม) ทับทั้งภาพ = ตัวอย่างผลตอนปริ้นจริง (สูตรเดียวกับ composeReceipt)
+            const im = ctx.getImageData(0, 0, W, cv.height);
             const d = im.data;
             for (let p = 0; p < d.length; p += 4) {
-                const v = Math.round(bwAdjust(d[p], offset, contrast));  // ภาพเป็นเทาอยู่แล้ว ใช้ channel เดียวพอ
+                const v = Math.round(bwAdjust(d[p], offset, contrast));  // ภาพเป็นเทาอยู่แล้ว ใช้ channel เดียวพอ (สูตรเดิม html 34)
                 d[p] = d[p + 1] = d[p + 2] = v;
             }
+            const k = (parseInt(sharp, 10) || 0) / 50;
+            if (k > 0) sharpenGray(im, W, cv.height, () => k);
             ctx.putImageData(im, 0, 0);
         }
 
@@ -3074,14 +3496,62 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             window.Android.postTestMoneyNotification(String(amt));
         }
 
-        // เลือกกลุ่มที่จะแก้ในหน้า frame edit แล้ว render 6 ปุ่ม (สี 3 + ขาวดำ 3)
+        // เลือกกลุ่มที่จะแก้ในหน้า frame edit — 'sg' | 'st' | 'cl_…' (เลย์เอาต์ที่ร้านสร้างเอง)
         function selectEditCategory(cat) {
             editCategory = cat;
-            document.getElementById('cat-sg').classList.toggle('active-cat', cat === 'sg');
-            document.getElementById('cat-st').classList.toggle('active-cat', cat === 'st');
+            ensureFrameCat(cat);
+            document.querySelectorAll('#overlay-frames [data-fcat]').forEach(b =>
+                b.classList.toggle('active-cat', b.getAttribute('data-fcat') === cat));
             renderFrameEditButtons();
             updatePhotoLayerButtons();
             updateFrameChoiceBtn();
+        }
+
+        // ===== ชั้นบนสุดของ frame edit: Basic Layout / Your Layout (โชว์เมื่อ LAYOUT_EDIT_ENABLED) =====
+        let frameScope = 'basic';
+        function openFrameEdit() {
+            const row = document.getElementById('frame-scope-row');
+            if (row) row.style.display = layoutSystemOn() ? 'flex' : 'none';
+            if (!layoutSystemOn()) frameScope = 'basic';   // ธงปิด = พฤติกรรมเดิมทุกประการ
+            setFrameScope(frameScope);
+        }
+        function setFrameScope(scope) {
+            frameScope = (scope === 'custom') ? 'custom' : 'basic';
+            document.querySelectorAll('#frame-scope-row [data-fscope]').forEach(b =>
+                b.classList.toggle('active-cat', b.getAttribute('data-fscope') === frameScope));
+            const basicRow = document.getElementById('frame-cat-basic-row');
+            const customRow = document.getElementById('frame-cat-custom-row');
+            if (basicRow) basicRow.style.display = (frameScope === 'basic') ? 'flex' : 'none';
+            if (customRow) customRow.style.display = (frameScope === 'custom') ? 'flex' : 'none';
+            if (frameScope === 'basic') {
+                selectEditCategory((editCategory === 'sg' || editCategory === 'st') ? editCategory : 'sg');
+            } else {
+                renderCustomFrameCatRow();
+                if (isCustomLayout(editCategory) && getCustomLayout(editCategory)) selectEditCategory(editCategory);
+                else if (customLayouts.length) selectEditCategory(customLayoutsNewestFirst()[0].id);
+                else { editCategory = null; renderFrameEditButtons(); }
+            }
+        }
+        function renderCustomFrameCatRow() {
+            const row = document.getElementById('frame-cat-custom-row');
+            if (!row) return;
+            if (!customLayouts.length) {
+                row.innerHTML = '<p style="color:#888; font-size:13px; margin:4px 0; text-align:center;">ยังไม่มีเลย์เอาต์ที่ร้านสร้างเอง — ไปสร้างในเมนู <b>layout edit</b> ก่อนนะคะ</p>';
+                return;
+            }
+            let html = '<div style="display:flex; flex-wrap:wrap; gap:8px;">';
+            for (const L of customLayoutsNewestFirst()) {
+                html += `<button class="btn-cat" data-fcat="${L.id}" style="flex:1; min-width:140px;" onclick="selectEditCategory('${L.id}')">${escLayoutName(L.name)}<span>576×${L.totalH}px · ยาว ${layoutCmLabel(L.totalH)}</span></button>`;
+            }
+            html += '</div>';
+            html += '<p style="color:#888; font-size:12px; margin:4px 0 0; text-align:center;">ไฟล์กรอบ = PNG เจาะรูช่องรูปให้โปร่งใส ขนาดพอดีใบของเลย์เอาต์นั้น (กว้าง 576px × ยาวตามใบ) · ไม่อัปกรอบ = ใบขาวสะอาด</p>';
+            row.innerHTML = html;
+        }
+        function frameCatLabel(cat) {
+            if (cat === 'sg') return 'Solo&Grid';
+            if (cat === 'st') return 'Strip&Twin';
+            const L = getCustomLayout(cat);
+            return L ? L.name : cat;
         }
 
         // สวิตช์: โชว์หน้าเลือกกรอบให้ลูกค้าไหม (ปิด = ข้ามไปใช้กรอบแรกเลย)
@@ -3133,42 +3603,70 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 </div>`;
             }
             // ปุ่มเพิ่ม/ลบกรอบ (ไม่จำกัดจำนวน) — ดำขอบขาว เข้าชุดปุ่มอื่นในหน้านี้
+            // (หมวด custom ที่ยังไม่มีกรอบเลย ไม่ต้องโชว์ปุ่มลบ — "#0" ดูงง)
             html += `<div class="frame-edit-col" style="justify-content:center; gap:10px;">
                 <button class="btn-frame-part" style="border:1.5px solid #fff; font-size:26px;" onclick="addFrameStyle('${cat}')">＋<span>เพิ่มกรอบ</span></button>
-                <button class="btn-frame-part" style="border:1.5px solid #fff; font-size:15px;" onclick="removeLastFrameStyle('${cat}')">ลบกรอบล่าสุด<span>#${frameCounts[cat]}</span></button>
+                ${frameCounts[cat] > 0 ? `<button class="btn-frame-part" style="border:1.5px solid #fff; font-size:15px;" onclick="removeLastFrameStyle('${cat}')">ลบกรอบล่าสุด<span>#${frameCounts[cat]}</span></button>` : ''}
             </div>`;
             wrap.innerHTML = html;
         }
 
-        // cat = 'sg' | 'st', part = 'full' (สี) | 'print' (ขาวดำ)
+        // cat = 'sg' | 'st' | 'cl_xxx' (ใบสั่งทำ), part = 'full' (สี) | 'print' (ขาวดำ)
         function pickFrame(cat, idx, part) {
             pickImage(async (base64) => {
-                // ย่อให้อัตโนมัติก่อนเก็บ — ใบเสร็จกว้างจริงแค่ 576 px ไฟล์ 3-4 MB จึงเปลืองเปล่าๆ
-                const small = (await shrinkImage(base64, FRAME_MAX_W)) || base64;
+                // ไฟล์ที่เบราว์เซอร์ถอดรหัสเป็นรูปไม่ได้ (PDF / TIFF / HEIC / ไฟล์เสีย) ห้ามบันทึก — เดิมบันทึกทับกรอบดีแล้วยังขึ้นว่าสำเร็จ
+                // ลูกค้าเลือกกรอบนั้นแล้วใบปริ้นออกมาไม่มีกรอบ · เช็คด้วยการถอดรหัสจริง ไม่ใช่ดูชนิดไฟล์
+                // (PNG ที่ไม่มีนามสกุลได้ชนิด octet-stream แต่เปิดได้ปกติ — ต้องรับเหมือน html 34 — กองตรวจ 17 ก.ย.)
+                const isImg = (s) => typeof s === 'string' && s.indexOf('data:image/') === 0 && s.length > 200;   // ใช้ตรวจผลที่แคนวาสสร้างเท่านั้น
+                const d0 = await imageSize(base64);
+                if (!d0 || !d0.w || !d0.h) { alert('อ่านไฟล์นี้เป็นรูปไม่ได้ค่ะ (ใช้ PNG หรือ JPG) — ยังไม่ได้บันทึกอะไร กรอบเดิมยังอยู่นะคะ'); return; }
+                // ใบเสร็จเป็นแนวตั้งเสมอ — ไฟล์ดีไซน์งานแบรนด์มักส่งมาแนวนอน (เช่น boarding pass 2235×576)
+                // ถามก่อนหมุน ไม่หมุนเงียบๆ เผื่อร้านตั้งใจอัปแบบนั้นจริง · เฉพาะตู้ที่เปิดระบบเลย์เอาต์ (ตู้ 1.28 = แบบ html 34)
+                const dim = layoutSystemOn() ? d0 : null;
+                if (dim && dim.w > dim.h) {
+                    if (confirm('ไฟล์นี้เป็นแนวนอน ' + dim.w + '×' + dim.h + '\n\nหมุนตามเข็ม 90° ให้เป็นใบเสร็จแนวตั้ง ' + dim.h + '×' + dim.w + ' ไหมคะ?\n(ใบเสร็จกว้าง 576 แนวตั้งเสมอ — ไฟล์แนวนอนจะปริ้นออกมาผิดด้าน)')) {
+                        // R15: ย่อก่อนหมุน — หมุนไฟล์มือถือ 6000×4000 เต็มขนาด = แรมเกือบ 100 MB บนแท็บเล็ต
+                        // ย่อให้พอดีเพดานที่จะเก็บจริงหลังหมุน (ด้านยาว ≤ frameStoreCap · ด้านกว้างหลังหมุน ≤ FRAME_MAX_STORE_W)
+                        // ไฟล์ที่เล็กกว่าเพดานอยู่แล้ว (เช่นกรอบ Dyson 2235×576) ไม่ถูกย่อ = ผลเหมือนเดิมทุก pixel
+                        const sc = Math.min(1, frameStoreCap(cat) / dim.w, FRAME_MAX_STORE_W / dim.h);
+                        let src = base64;
+                        if (sc < 1) src = (await shrinkImage(base64, Math.max(1, Math.round(dim.w * sc)))) || '';
+                        const rot = isImg(src) ? await rotateImage90(src) : '';
+                        if (!isImg(rot)) { alert('หมุนรูปไม่สำเร็จ (ไฟล์อาจใหญ่เกินไป) — ยังไม่ได้บันทึกอะไร ลองย่อไฟล์แล้วอัปใหม่นะคะ'); return; }
+                        base64 = rot;
+                    }
+                }
+                // ย่อให้อัตโนมัติก่อนเก็บ — ไฟล์ 3-4 MB เปลืองเปล่าๆ
+                // เพดานคิดจาก "ความยาวใบจริง" ของหมวดนี้ (ดู frameStoreCap) ไม่ใช่ค่าคงที่ 1400
+                // ย่อพัง (แรมตึง / แคนวาสได้ "data:,") → ใช้ไฟล์เดิมซึ่งถอดรหัสผ่านแล้วข้างบน = แบบ html 34
+                let small = await shrinkImage(base64, frameStoreCap(cat), false, FRAME_MAX_STORE_W);
+                if (!isImg(small)) small = base64;
                 base64 = '';
-                window.Android.saveFramePart(idx, cat + '_' + part, small);
+                saveFramePart(idx, cat + '_' + part, small);
                 if (part === 'full') { const th = await shrinkImage(small, FRAME_THUMB_W, true); if (th) saveFrameThumb(cat, idx, th); else delete frameThumbs[cat][idx]; }
                 else { savePrintHas(cat, idx, true); }
                 renderFrameEditButtons();
-                alert(`บันทึกกรอบ${part === 'full' ? 'สี (ดิจิทัล)' : 'ขาวดำ (ปริ้น)'} ${cat === 'sg' ? 'Solo&Grid' : 'Strip&Twin'} #${idx} สำเร็จ!`);
+                alert(`บันทึกกรอบ${part === 'full' ? 'สี (ดิจิทัล)' : 'ขาวดำ (ปริ้น)'} ${frameCatLabel(cat)} #${idx} สำเร็จ!`);
             });
         }
 
         function resetAllFrames() {
             if (confirm("ล้างกรอบที่อัพโหลดทั้งหมด แล้วกลับไปใช้เฟรมพื้นฐานที่ติดมากับแอป?")) {
+                // ใบสั่งทำ "ไม่แตะ" โดยตั้งใจ — ไม่มีกรอบพื้นฐานในแอปให้ถอยกลับ ถ้าลบไฟล์ทิ้งแต่รูปย่อยังค้าง
+                // ลูกค้าจะเลือกกรอบที่ไม่มีไฟล์แล้ว = ปริ้นออกมาเป็นใบขาว (เคยลองกวาดด้วย แล้วกองตรวจ 10 กย จับได้ → คืนแบบเดิม)
                 ['sg', 'st'].forEach(cat => {
                     const upTo = Math.max(3, frameCounts[cat] || 3);
                     for (let i = 1; i <= upTo; i++) {
-                        window.Android.saveFramePart(i, cat + '_full', '');
-                        window.Android.saveFramePart(i, cat + '_print', '');
+                        saveFramePart(i, cat + '_full', '');
+                        saveFramePart(i, cat + '_print', '');
                         if (i > 3) delete frames[cat][i];
                     }
                 });
                 // ล้างไฟล์ระบบเก่า (full/print/top/bottom) ทิ้งด้วย เผื่อเคยอัพไว้
                 for (let i = 1; i <= 3; i++) {
-                    ['full', 'print', 'top', 'bottom'].forEach(p => window.Android.saveFramePart(i, p, ''));
+                    ['full', 'print', 'top', 'bottom'].forEach(p => saveFramePart(i, p, ''));
                 }
-                frameCounts = { sg: 3, st: 3 }; saveFrameCounts();   // กลับไปจำนวนพื้นฐาน 3 กรอบ
+                frameCounts = { sg: 3, st: 3 }; saveFrameCounts();   // กลับไปจำนวนพื้นฐาน 3 กรอบ (ตัวนับใบสั่งทำยังอยู่ในเครื่อง loadSavedFrames ดึงกลับให้)
                 // โหลดใหม่ → getFramePart จะ fallback ไปดึงเฟรมพื้นฐานจาก assets กลับมาทันที
                 loadSavedFrames();
                 alert("กลับไปใช้เฟรมพื้นฐานแล้ว");
@@ -3187,9 +3685,873 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             input.click();
         }
 
+        // ===== รูปปกการ์ดเลย์เอาต์ (เปลี่ยนได้ในหน้า layout edit) =====
+        // ปก = พรีวิวเท่านั้น → JPEG พื้นขาวย่อเล็กได้ (กติกา PNG-ห้ามแตะ ใช้กับไฟล์กรอบที่เอาไปปริ้นเท่านั้น)
+        const COVER_STORE_BUDGET = 2000000;   // งบ localStorage รวมของปกทุกใบ ~2MB (ขยายรับเพดาน 100 ใบ; แยกจากงบรูปย่อกรอบ 2.5MB)
+        // เกินงบ = ปกอยู่ใน RAM เฉพาะรอบเปิดแอป — ใบ custom ไม่มีปกเก็บไว้จะถอยไปใช้ปกผังออโต้เสมอ ไม่มีการ์ดว่าง
+        let _coverStored = 0;
+        const _coverRam = {};                 // ปกที่เกินงบ → ถือใน RAM เฉพาะรอบเปิดแอปนี้ (ไม่เก็บถาวร)
+        const _lcKey = (k) => 'layoutCover_' + k;
+        function loadCoverBudget() {          // นับพื้นที่ปกที่เก็บไว้แล้ว (เรียกครั้งเดียวตอนบูต)
+            _coverStored = 0;
+            try {
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.indexOf('layoutCover_') === 0) _coverStored += (localStorage.getItem(key) || '').length;
+                }
+            } catch (e) {}
+        }
+        function layoutCoverOf(k) {
+            if (_coverRam[k]) return _coverRam[k];
+            try { return localStorage.getItem(_lcKey(k)) || ''; } catch (e) { return ''; }
+        }
+        function saveLayoutCover(k, dataUrl) {
+            _coverRam[k] = dataUrl;
+            try {
+                const old = (localStorage.getItem(_lcKey(k)) || '').length;
+                if (_coverStored - old + dataUrl.length <= COVER_STORE_BUDGET) {
+                    localStorage.setItem(_lcKey(k), dataUrl);
+                    _coverStored += dataUrl.length - old;
+                }
+            } catch (e) {}   // ที่เต็ม/เขียนพัง → ยังโชว์จาก RAM ได้ทั้งรอบนี้ ไม่ถือเป็นเรื่องคอขาดบาดตาย
+        }
+        // ที่มาของปก: 'user' = ร้านอัปเอง · 'auto' = ปกผังที่ระบบวาด · '' = ปกที่บันทึกก่อน html 51 (ไม่รู้ที่มา)
+        // คีย์ห้ามขึ้นต้น layoutCover_ (ตัวนับงบปกนับคีย์ชุดนั้น)
+        function coverSrcOf(k) { try { return localStorage.getItem('coverSrc_' + k) || ''; } catch (e) { return ''; } }
+        function setCoverSrc(k, v) { try { if (v) localStorage.setItem('coverSrc_' + k, v); else localStorage.removeItem('coverSrc_' + k); } catch (e) {} }
+        function clearLayoutCover(k) {
+            setCoverSrc(k, '');
+            delete _coverRam[k];
+            try {
+                _coverStored -= (localStorage.getItem(_lcKey(k)) || '').length;
+                if (_coverStored < 0) _coverStored = 0;
+                localStorage.removeItem(_lcKey(k));
+            } catch (e) {}
+        }
+
+        // ปกออโต้ของเลย์เอาต์ custom: ผังช่องรูปย่อส่วน (พื้นขาว กล่องม่วงอ่อน เลขลำดับถ่าย) — ไม่ต้องอัปรูปเองก็มีปก
+        function makeLayoutSchematicCover(L) {
+            try {
+                const w = 240, s = w / 576;
+                const c = document.createElement('canvas');
+                c.width = w; c.height = Math.max(1, Math.round(L.totalH * s));
+                const x = c.getContext('2d');
+                x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+                x.strokeStyle = '#ddd'; x.lineWidth = 2; x.strokeRect(1, 1, c.width - 2, c.height - 2);
+                // ปกผังโทนขาวดำ (เข้ากับแอป + เหมือนใบปริ้นจริง)
+                L.boxes.forEach((b, i) => {
+                    x.fillStyle = '#efefef';
+                    x.fillRect(b.x * s, b.y * s, b.w * s, b.h * s);
+                    x.strokeStyle = '#999'; x.lineWidth = 1.5;
+                    x.strokeRect(b.x * s, b.y * s, b.w * s, b.h * s);
+                    x.fillStyle = '#333';
+                    x.font = 'bold ' + Math.max(12, Math.min(28, Math.round(b.h * s * 0.4))) + 'px sans-serif';
+                    x.textAlign = 'center'; x.textBaseline = 'middle';
+                    x.save();
+                    x.translate((b.x + b.w / 2) * s, (b.y + b.h / 2) * s);
+                    x.rotate(boxRot(b) * Math.PI / 180);
+                    x.fillText(String(i + 1), 0, 0);
+                    x.restore();
+                });
+                return c.toDataURL('image/jpeg', 0.85);
+            } catch (e) { return ''; }
+        }
+
+        // ===== หน้าเลือกเลย์เอาต์ (ลูกค้า) — วาดการ์ดใหม่ทุกครั้งที่เข้า =====
+        function escLayoutName(s) {
+            return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                                  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+        // ไอคอน fallback ของเลย์เอาต์เดิม — ต้องตรง markup ดั้งเดิมทุกตัวอักษร (ธงปิด = หน้าตาเดิมเป๊ะ)
+        function layoutIconHtml(k) {
+            if (k === 'solo') return '<div class="layout-icon i-solo" style="display:none;"></div>';
+            if (k === 'strip') return '<div class="layout-icon i-strip" style="display:none;"><div></div><div></div><div></div></div>';
+            if (k === 'grid') return '<div class="layout-icon i-grid" style="display:none;"><div></div><div></div><div></div><div></div></div>';
+            return '<div class="layout-icon i-twin" style="display:none;"><div></div><div></div><div></div><div></div><div></div><div></div></div>';
+        }
+        function renderLayoutChooser() {
+            // ธงปิด = ไม่แตะ DOM เลย — การ์ด 4 ใบเดิมใน HTML ยืนโรงเหมือน production เป๊ะ
+            // (กันทั้งการ์ดกะพริบจากการวาดใหม่ทุกรอบ และกันรูปปกที่ร้านเคยอัปตอนธงเปิดโผล่หลัง rollback)
+            if (!layoutSystemOn()) return;
+            const wrap = document.getElementById('layout-cards');
+            if (!wrap) return;
+            let list = BUILTIN_LAYOUTS.filter(k => layoutEnabled[k]);
+            let customs = customLayoutsNewestFirst().filter(L => L.status === 'approved' && L.enabled !== false);
+            // ร้านเผลอปิดหมดทุกใบ → โชว์ 4 ใบเดิมทั้งหมด (ห้ามให้หน้าลูกค้าว่างเปล่าเด็ดขาด)
+            if (list.length + customs.length === 0) list = BUILTIN_LAYOUTS.slice();
+            wrap.classList.toggle('grid-wrap3', list.length + customs.length > 4);
+            // ใบสั่งทำขึ้นก่อน (ร้านจ่ายเงินซื้อมา + ก๊องขอให้ของใหม่อยู่ลำดับแรก) แล้วค่อยต่อด้วยใบพื้นฐาน
+            let html = '', htmlBuiltin = '';
+            for (const k of list) {
+                const cov = layoutCoverOf(k);
+                const img = cov
+                    ? `<img class="layout-photo" src="${cov}">`
+                    : `<img class="layout-photo" src="static/frames/layout_${k}.png" onerror="this.style.display='none';this.nextElementSibling.style.display='';">${layoutIconHtml(k)}`;
+                const label = k.charAt(0).toUpperCase() + k.slice(1);
+                htmlBuiltin += `<div class="layout-opt" onclick="selectLayout('${k}')">${img}<h3>${label}</h3></div>`;
+            }
+            for (const L of customs) {
+                // ปกผังที่วาดสดให้จำใน RAM ด้วย — ร้านที่มีใบเยอะ (เพดาน 100) จะได้ไม่วาดใหม่ทุกครั้งที่ลูกค้าเข้าหน้านี้
+                let cov = layoutCoverOf(L.id);
+                if (!cov) { cov = makeLayoutSchematicCover(L); if (cov) _coverRam[L.id] = cov; }
+                const img = cov ? `<img class="layout-photo" src="${cov}">` : '<div class="layout-icon i-solo"></div>';
+                html += `<div class="layout-opt" onclick="selectLayout('${L.id}')">${img}<h3>${escLayoutName(L.name)}</h3></div>`;
+            }
+            wrap.innerHTML = html + htmlBuiltin;
+        }
+
+        // ===== หน้า layout edit (เจ้าของร้าน) =====
+        // ธีมขาวดำล้วนทั้งระบบ (คำสั่งก๊อง 4 กย: ให้เข้ากับแอป) — แยกสถานะด้วยน้ำหนักขาว-เทา ไม่ใช้สี
+        // ชิปสถานะ: ใช้ได้ = ขาวทึบตัวดำ (เด่นสุด) / รอตรวจ = ขอบขาวตัวขาว / ร่าง = เทา / ไม่ผ่าน = เทาหม่น
+        const LAYOUT_STATUS_TH = {
+            draft:    ['ร่าง',    'background:#3a3a3a; color:#ccc;'],
+            pending:  ['รอตรวจ',  'background:transparent; border:1.5px solid #fff; color:#fff;'],
+            approved: ['ใช้ได้',  'background:#fff; color:#000;'],
+            rejected: ['ไม่ผ่าน', 'background:#1c1c1c; border:1px solid #555; color:#888;']
+        };
+        // สไตล์ปุ่มเล็กในแถว (ใช้ซ้ำทุกแถว — โทนเดียวกับปุ่มเมนู) + ตัวแปรเน้น/หม่นแบบขาวดำ
+        const LE_BTN = "padding:8px 10px; border-radius:10px; border:1px solid #444; background:#222; color:#eee; font-size:13px; cursor:pointer;";
+        const LE_ON  = "border-color:#fff; color:#fff; font-weight:bold;";   // สถานะเปิด/ปุ่มเด่น
+        const LE_OFF = "border-color:#555; color:#777;";                      // สถานะปิด/ปุ่มหม่น
+        function layoutCmLabel(totalH) { return (totalH / 80).toFixed(1).replace(/\.0$/, '') + ' ซม.'; }
+
+        function renderLayoutEditUI() {
+            const bw = document.getElementById('layout-basic-rows');
+            if (bw) {
+                let html = '';
+                for (const k of BUILTIN_LAYOUTS) {
+                    const on = !!layoutEnabled[k];
+                    const label = k.charAt(0).toUpperCase() + k.slice(1);
+                    const cov = layoutCoverOf(k);
+                    html += `<div style="display:flex; align-items:center; gap:8px; background:#161616; border:1px solid #333; border-radius:12px; padding:10px 12px;">
+                        <div style="flex:1; text-align:left; color:#fff; font-weight:bold;">${label}
+                          <span style="display:block; font-size:11px; color:#888; font-weight:normal;">${cov ? 'ปกที่อัปเอง' : 'ปกมาตรฐาน'}</span></div>
+                        <button onclick="pickLayoutCover('${k}')" style="${LE_BTN}">เปลี่ยนปก</button>
+                        ${cov ? `<button onclick="resetLayoutCover('${k}')" style="${LE_BTN}">ปกเดิม</button>` : ''}
+                        <button onclick="toggleLayoutEnabled('${k}')" style="${LE_BTN} ${on ? LE_ON : LE_OFF}">${on ? 'เปิด' : 'ปิด'}</button>
+                    </div>`;
+                }
+                bw.innerHTML = html;
+            }
+            const cw = document.getElementById('layout-custom-rows');
+            if (cw) {
+                if (!customLayouts.length) {
+                    cw.innerHTML = '<p style="color:#666; font-size:13px; margin:2px 0; text-align:center;">ยังไม่มีเลย์เอาต์ของร้าน — กด ＋ ด้านล่างเพื่อเริ่มออกแบบ</p>';
+                } else {
+                    let html = '';
+                    for (const L of customLayoutsNewestFirst()) {
+                        const st = LAYOUT_STATUS_TH[L.status] || LAYOUT_STATUS_TH.draft;
+                        const on = L.enabled !== false;
+                        let btns = '';
+                        if (L.status === 'draft') {
+                            // โหมดเทสไม่ต้องอนุมัติ: ปุ่ม "ใช้เลย" แทนส่งขอ (ใช้เฉพาะตัวเทส — ตัวจริงต้องขออนุมัติ)
+                            btns = `<button onclick="openLayoutEditor('${L.id}')" style="${LE_BTN}">แก้ไข</button>
+                                    <button onclick="printLayoutTest('${L.id}')" style="${LE_BTN}">ปริ้นเทส</button>
+                                    <button onclick="showLayoutCode('${L.id}')" style="${LE_BTN}">ดูรหัส</button>
+                                    ${LAYOUT_TEST_NO_APPROVAL
+                                        ? `<button onclick="useLayoutNow('${L.id}')" style="${LE_BTN} ${LE_ON}">ใช้เลย (เทส)</button>`
+                                        : `<button onclick="submitLayoutRequest('${L.id}')" style="${LE_BTN} ${LE_ON}">ส่งขออนุมัติ</button>`}`;
+                        } else if (L.status === 'pending') {
+                            btns = `<button onclick="checkLayoutApproval('${L.id}')" style="${LE_BTN} ${LE_ON}">เช็คสถานะ</button>`;
+                        } else if (L.status === 'approved') {
+                            // ปุ่มแก้ไข: เหลือสิทธิ์ 1 ครั้ง (revisionUsed) แล้วหายไปถาวร — โหมดเทสก็กติกาเดียวกัน (ก๊อง 4 กย)
+                            const editBtn = (L.revisionUsed !== true)
+                                ? `<button onclick="openLayoutEditor('${L.id}')" style="${LE_BTN}">แก้ไข<span style="display:block; font-size:10px; color:#888;">เหลือ 1 ครั้ง</span></button>`
+                                : '';
+                            btns = `<button onclick="toggleCustomEnabled('${L.id}')" style="${LE_BTN} ${on ? LE_ON : LE_OFF}">${on ? 'เปิด' : 'ปิด'}</button>
+                                    ${editBtn}
+                                    <button onclick="printLayoutTest('${L.id}')" style="${LE_BTN}">ปริ้นเทส</button>
+                                    <button onclick="pickLayoutCover('${L.id}')" style="${LE_BTN}">เปลี่ยนปก</button>
+                                    <button onclick="showLayoutCode('${L.id}')" style="${LE_BTN}">ดูรหัส</button>
+                                    <button onclick="duplicateCustomLayout('${L.id}')" style="${LE_BTN}">ก๊อปเป็นร่าง</button>`;
+                        } else {   // rejected — เช็คซ้ำได้เผื่อแอดมินเปลี่ยนใจอนุมัติทีหลัง
+                            btns = `<button onclick="showLayoutNote('${L.id}')" style="${LE_BTN}">ดูเหตุผล</button>
+                                    ${L.reqId ? `<button onclick="checkLayoutApproval('${L.id}')" style="${LE_BTN} ${LE_ON}">เช็คสถานะ</button>` : ''}
+                                    <button onclick="duplicateCustomLayout('${L.id}')" style="${LE_BTN}">ก๊อปเป็นร่าง</button>`;
+                        }
+                        html += `<div style="display:flex; align-items:center; gap:8px; background:#161616; border:1px solid #333; border-radius:12px; padding:10px 12px; flex-wrap:wrap;">
+                            <div style="flex:1; min-width:120px; text-align:left; color:#fff; font-weight:bold;">${escLayoutName(L.name)}
+                              <span style="display:block; font-size:11px; color:#888; font-weight:normal;">${L.boxes.length} ช่อง · ยาว ${layoutCmLabel(L.totalH)}</span></div>
+                            <span style="font-size:12px; font-weight:bold; border-radius:20px; padding:4px 10px; ${st[1]}">${st[0]}</span>
+                            ${btns}
+                            <button onclick="deleteCustomLayout('${L.id}')" style="${LE_BTN} ${LE_OFF}">ลบ</button>
+                        </div>`;
+                    }
+                    cw.innerHTML = html;
+                }
+            }
+        }
+
+        function toggleLayoutEnabled(k) {
+            layoutEnabled[k] = layoutEnabled[k] ? 0 : 1;
+            // ห้ามปิดจนไม่เหลืออะไรให้ลูกค้าเลือกเลย (ไม่มีเลย์เอาต์เดิมเปิด + ไม่มี custom ที่ใช้ได้)
+            const anyBuiltin = BUILTIN_LAYOUTS.some(x => layoutEnabled[x]);
+            const anyCustom = customLayouts.some(L => L.status === 'approved' && L.enabled !== false);
+            if (!anyBuiltin && !anyCustom) {
+                layoutEnabled[k] = 1;
+                alert('ต้องเหลือเลย์เอาต์ให้ลูกค้าเลือกอย่างน้อย 1 แบบค่ะ');
+            }
+            saveLayoutEnabled();
+            renderLayoutEditUI();
+        }
+        function toggleCustomEnabled(id) {
+            const L = getCustomLayout(id);
+            if (!L) return;
+            L.enabled = (L.enabled === false);
+            saveCustomLayouts();
+            renderLayoutEditUI();
+        }
+        function pickLayoutCover(k) {
+            pickImage(async (dataUrl) => {
+                const small = await shrinkImage(dataUrl, 400, true);   // ปก = พรีวิว → JPEG พื้นขาว (ไฟล์ปริ้นไม่เกี่ยว)
+                if (!small) { alert('อ่านรูปไม่สำเร็จ ลองรูปอื่นดูนะคะ'); return; }
+                saveLayoutCover(k, small);
+                setCoverSrc(k, 'user');
+                renderLayoutEditUI();
+            });
+        }
+        function resetLayoutCover(k) { clearLayoutCover(k); renderLayoutEditUI(); }
+        function deleteCustomLayout(id) {
+            const L = getCustomLayout(id);
+            if (!L) return;
+            const warn = (L.status === 'approved')
+                ? 'ลบเลย์เอาต์ "' + L.name + '" ? สิทธิ์ที่อนุมัติแล้วของใบนี้จะหายไปด้วย (สร้างใหม่ต้องขออนุมัติใหม่)'
+                : 'ลบเลย์เอาต์ "' + L.name + '" ?';
+            if (!confirm(warn)) return;
+            // เก็บกวาดกรอบของใบนี้ให้หมด (ไฟล์ในเครื่อง + รูปย่อ + ตัวนับ) — ไม่ให้เป็นขยะค้าง
+            try {
+                ensureFrameCat(id);
+                for (let i = 1; i <= (frameCounts[id] || 0); i++) {
+                    saveFramePart(i, id + '_full', '');
+                    saveFramePart(i, id + '_print', '');
+                    clearFrameThumb(id, i);
+                }
+                delete frames[id]; delete frameCounts[id]; delete frameThumbs[id]; delete framePrintHas[id];
+                localStorage.removeItem('frameCount_' + id);
+            } catch (e) {}
+            customLayouts = customLayouts.filter(x => x.id !== id);
+            saveCustomLayouts();
+            clearLayoutCover(id);
+            renderLayoutEditUI();
+        }
+        function duplicateCustomLayout(id) {
+            const L = getCustomLayout(id);
+            if (!L) return;
+            if (customLayouts.length >= CUSTOM_LAYOUT_MAX) { alert('เลย์เอาต์เต็ม (' + CUSTOM_LAYOUT_MAX + ' อัน) — ลบอันเก่าก่อนนะคะ'); return; }
+            const copy = { v: 1, id: newCustomLayoutId(), name: (L.name + ' (สำเนา)').slice(0, 30), totalH: L.totalH,
+                           boxes: L.boxes.map(boxCopy),
+                           status: 'draft', hash: '', reqId: '', enabled: true, createdAt: Date.now() };
+            customLayouts.push(copy);
+            saveCustomLayouts();
+            renderLayoutEditUI();
+        }
+        function showLayoutNote(id) {
+            const L = getCustomLayout(id);
+            alert((L && L.note) ? ('เหตุผล: ' + L.note) : 'ไม่มีโน้ตแนบมา — สอบถามแอดมินได้เลยค่ะ');
+        }
+        function newCustomLayoutId() {
+            return 'cl_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        }
+        // ปริ้นใบเทสของเลย์เอาต์ลงกระดาษจริง (ก๊องขอ 4 กย): ผังช่องรูปขนาดจริง 576×totalH —
+        // กรอบดำหนา + เลขลำดับถ่ายใหญ่ๆ กลางช่อง (เหมือนที่เห็นบนจอ) + ขนาดช่องเป็นมม.กำกับ
+        // ร้านจะได้เห็นตำแหน่ง/ขนาดจริงบนกระดาษก่อนใช้งาน/ก่อนส่งขออนุมัติ
+        function printLayoutTest(id) {
+            const L = getCustomLayout(id);
+            if (!L) return;
+            if (!window.Android || !window.Android.printThermal) {
+                alert('หน้านี้ไม่ได้ต่อกับเครื่องปริ้นค่ะ — ลองบนตู้จริงนะคะ');
+                return;
+            }
+            const c = document.createElement('canvas');
+            c.width = 576; c.height = L.totalH;
+            const x = c.getContext('2d');
+            x.fillStyle = '#fff'; x.fillRect(0, 0, 576, L.totalH);
+            // เส้นขอบรอบใบบางๆ ให้เห็นขนาดใบเต็มบนกระดาษ
+            x.strokeStyle = '#000'; x.lineWidth = 2; x.strokeRect(1, 1, 574, L.totalH - 2);
+            L.boxes.forEach((b, i) => {
+                x.lineWidth = 4; x.strokeStyle = '#000';
+                x.strokeRect(b.x + 2, b.y + 2, Math.max(8, b.w - 4), Math.max(8, b.h - 4));
+                x.fillStyle = '#000'; x.textAlign = 'center'; x.textBaseline = 'middle';
+                const numSize = Math.max(40, Math.min(120, Math.round(b.h * 0.3)));
+                x.font = 'bold ' + numSize + 'px sans-serif';
+                // เลขหมุนตามทิศรูป (หัวเลข = ด้านบนของรูปลูกค้า) — เช็คทิศบนกระดาษจริงได้ก่อนส่งขออนุมัติ
+                x.save();
+                x.translate(b.x + b.w / 2, b.y + b.h / 2);
+                x.rotate(boxRot(b) * Math.PI / 180);
+                x.fillText(String(i + 1), 0, 0);
+                x.restore();
+                if (boxRot(b)) { x.font = 'bold 20px sans-serif'; x.fillText('หมุน ' + boxRot(b) + '°', b.x + b.w / 2, b.y + 22); }
+                x.font = 'bold 20px sans-serif';   // ขนาดช่องจริง (มม.) ใต้เลข — 8px = 1มม.
+                x.fillText(Math.round(b.w / 8) + '×' + Math.round(b.h / 8) + ' มม.',
+                           b.x + b.w / 2, Math.min(b.y + b.h - 18, b.y + b.h / 2 + numSize * 0.75));
+            });
+            try {
+                window.Android.printThermal(c.toDataURL('image/png'), 1);
+                alert('ส่งใบเทส "' + L.name + '" ไปเครื่องปริ้นแล้วค่ะ 🖨️ (ยาว ' + layoutCmLabel(L.totalH) + ')');
+            } catch (e) { alert('สั่งปริ้นไม่สำเร็จ — เช็คเครื่องปริ้นแล้วลองใหม่นะคะ'); }
+        }
+
+        // โหมดเทส: เปลี่ยนร่างเป็น "ใช้ได้" ทันทีโดยไม่ผ่าน Firebase (ปุ่มโผล่เฉพาะตอน LAYOUT_TEST_NO_APPROVAL)
+        function useLayoutNow(id) {
+            if (!LAYOUT_TEST_NO_APPROVAL) return;
+            const L = getCustomLayout(id);
+            if (!L || L.status !== 'draft') return;
+            L.status = 'approved'; L.enabled = true; L.approvedAt = Date.now();
+            saveCustomLayouts();
+            renderLayoutEditUI();
+        }
+
+        // ===== editor เลย์เอาต์ custom (ลาก/ย่อขยายช่องรูปบนเวทีย่อส่วน) =====
+        // ทำงานบน "สำเนา" (leWork) เสมอ — กด done ถึงค่อยบันทึกจริง, cancel = ทิ้งทั้งก้อน
+        let leWork = null;        // { name, totalH, boxes:[{x,y,w,h}] } หน่วย px จริงบนผืน 576
+        let leEditingId = '';     // '' = สร้างใหม่ / ไม่ว่าง = แก้ draft เดิม
+        let leSelected = -1;      // index ช่องที่เลือกอยู่
+        let leScale = 0.5;        // อัตราย่อเวที (CSS px ต่อ 1 px จริง)
+        let leDrag = null;        // สถานะลาก { mode:'move'|'resize', idx, sx, sy, ox, oy, ow, oh }
+
+        function openLayoutEditor(id) {
+            if (id) {
+                const L = getCustomLayout(id);
+                if (!L) return;
+                // สิทธิ์แก้ไข (กติกาก๊อง 4 กย): ร่าง = แก้ได้อิสระ (รอบวางแบบแรก) ·
+                // ใบที่ใช้ได้ (approved) = แก้ได้อีก "1 รอบเท่านั้น" (revisionUsed) — โหมดเทสก็กติกาเดียวกัน
+                const isRevision = (L.status === 'approved' && L.revisionUsed !== true);
+                const editable = (L.status === 'draft') || isRevision;
+                if (!editable) {
+                    alert(L.status === 'approved'
+                        ? 'ใบนี้ใช้สิทธิ์แก้ไข 1 ครั้งไปแล้วค่ะ — อยากปรับอีกใช้ "ก๊อปเป็นร่าง" สร้างเป็นใบใหม่ (ขออนุมัติใหม่)'
+                        : 'แก้ได้เฉพาะฉบับร่างค่ะ — ใบที่ส่งขอ/อนุมัติแล้ว ใช้ "ก๊อปเป็นร่าง" แทน');
+                    return;
+                }
+                if (isRevision && !confirm('ใบที่ซื้อแล้วแก้ไขได้ 1 ครั้งเท่านั้นนะคะ\nสิทธิ์จะถูกใช้เมื่อกด done — จะแก้ตอนนี้ไหมคะ?')) return;
+                leWork = { name: L.name, totalH: L.totalH, boxes: L.boxes.map(boxCopy) };
+                leEditingId = id;
+            } else {
+                if (customLayouts.length >= CUSTOM_LAYOUT_MAX) { alert('เลย์เอาต์เต็ม (' + CUSTOM_LAYOUT_MAX + ' อัน) — ลบอันเก่าก่อนนะคะ'); return; }
+                // เริ่มด้วยช่องเดียวกลางผืน 20 ซม. (แก้ต่อได้ทุกอย่าง)
+                leWork = { name: '', totalH: 1600, boxes: [{ x: 48, y: 160, w: 480, h: 600 }] };
+                leEditingId = '';
+            }
+            leSelected = 0;
+            const nameEl = document.getElementById('le-name');
+            if (nameEl) nameEl.value = leWork.name;
+            const hEl = document.getElementById('le-height');
+            if (hEl) hEl.value = leWork.totalH;
+            const hNum = document.getElementById('le-height-num');
+            if (hNum) hNum.value = leWork.totalH;
+            toggleOverlay('overlay-layout-editor', true);
+            leRender();
+        }
+
+        function leClampBox(b) {
+            // ลำดับ: ขนาดขั้นต่ำ → สัดส่วนไม่เกิน 1:4/4:1 → อยู่ในผืนทั้งก้อน
+            b.w = Math.max(CUSTOM_BOX_MIN, Math.min(576, Math.round(b.w)));
+            b.h = Math.max(CUSTOM_BOX_MIN, Math.min(leWork.totalH, Math.round(b.h)));
+            if (b.w / b.h > 4) b.w = b.h * 4;
+            if (b.h / b.w > 4) b.h = b.w * 4;
+            b.w = Math.round(b.w); b.h = Math.round(b.h);
+            b.x = Math.max(0, Math.min(576 - b.w, Math.round(b.x)));
+            b.y = Math.max(0, Math.min(leWork.totalH - b.h, Math.round(b.y)));
+        }
+
+        function leSetHeight(v) {
+            if (!leWork) return;
+            let n = parseInt(v, 10); if (isNaN(n)) n = 1600;
+            leWork.totalH = Math.max(CUSTOM_H_MIN, Math.min(CUSTOM_H_MAX, n));
+            leWork.boxes.forEach(leClampBox);   // ใบสั้นลง → ดันช่องกลับเข้าผืน
+            const hs = document.getElementById('le-height'), hn = document.getElementById('le-height-num');
+            if (hs) hs.value = leWork.totalH;
+            if (hn && String(hn.value) !== String(leWork.totalH)) hn.value = leWork.totalH;
+            leRender();
+        }
+        // ช่องพิมพ์ตัวเลขความยาว: ว่าง/พิมพ์ไม่ครบ/เกินช่วง = คืนค่าเดิม ห้ามเอาไปใช้
+        // (ถ้าใช้เลย ใบจะหดแล้ว leClampBox ดันช่องรูปย้ายที่ถาวร พิมพ์ค่าเดิมกลับก็ไม่คืน — กองตรวจ 10 กย)
+        function leSetHeightTyped(el) {
+            if (!leWork || !el) return;
+            const v = String(el.value || '').trim();
+            const n = parseInt(v, 10);
+            if (!v || isNaN(n)) { el.value = leWork.totalH; return; }
+            if (n < CUSTOM_H_MIN || n > CUSTOM_H_MAX) {
+                el.value = leWork.totalH;
+                alert('ความยาวต้องอยู่ระหว่าง ' + CUSTOM_H_MIN + '–' + CUSTOM_H_MAX + ' px ค่ะ');
+                return;
+            }
+            leSetHeight(n);
+        }
+
+        function leAddBox() {
+            if (!leWork) return;
+            if (leWork.boxes.length >= 8) { alert('ใส่ได้สูงสุด 8 ช่องค่ะ'); return; }
+            const n = leWork.boxes.length;
+            const b = { x: 48 + (n % 3) * 24, y: Math.min(leWork.totalH - 300, 120 + n * 90), w: 300, h: 300 };
+            leClampBox(b);
+            leWork.boxes.push(b);
+            leSelected = leWork.boxes.length - 1;
+            leRender();
+        }
+
+        // หมุนรูปของช่องที่เลือกทีละ 90° ตามเข็ม (0 → 90 → 180 → 270 → 0) — ขนาดช่องไม่เปลี่ยน
+        function leRotateBox() {
+            if (!leWork || leSelected < 0 || !leWork.boxes[leSelected]) { alert('แตะเลือกช่องก่อนค่ะ'); return; }
+            const b = leWork.boxes[leSelected];
+            const r = (boxRot(b) + 90) % 360;
+            if (r) b.r = r; else delete b.r;
+            leRender();
+        }
+
+        function leDeleteBox() {
+            if (!leWork || leSelected < 0 || !leWork.boxes[leSelected]) return;
+            if (leWork.boxes.length <= 1) { alert('ต้องมีอย่างน้อย 1 ช่องค่ะ'); return; }
+            leWork.boxes.splice(leSelected, 1);   // เลขช่องรันใหม่อัตโนมัติ (ลำดับ array = ลำดับถ่าย)
+            leSelected = Math.min(leSelected, leWork.boxes.length - 1);
+            leRender();
+        }
+
+        function leRender() {
+            if (!leWork) return;
+            const stage = document.getElementById('le-stage');
+            const cm = document.getElementById('le-cm');
+            if (cm) cm.textContent = layoutCmLabel(leWork.totalH);
+            if (!stage) return;
+            // ย่อผืน 576 ให้พอดีจอ: กว้างไม่เกิน ~55vw และผืนทั้งใบพยายามไม่เกินช่องเลื่อน (ใบยาวก็เลื่อนดูได้)
+            const stageW = Math.min(window.innerWidth * 0.55, 340);
+            leScale = stageW / 576;
+            stage.style.width = Math.round(stageW) + 'px';
+            stage.style.height = Math.round(leWork.totalH * leScale) + 'px';
+            let html = '';
+            // โทนขาวดำล้วน (เข้ากับแอป + ใบปริ้นจริงก็ขาวดำ): เลือกอยู่ = ดำเข้ม / ยังไม่เลือก = เทาประ
+            leWork.boxes.forEach((b, i) => {
+                const sel = (i === leSelected);
+                html += `<div data-le-box="${i}" style="position:absolute; left:${b.x * leScale}px; top:${b.y * leScale}px;
+                    width:${b.w * leScale}px; height:${b.h * leScale}px; box-sizing:border-box; touch-action:none;
+                    background:${sel ? 'rgba(0,0,0,0.14)' : 'rgba(0,0,0,0.05)'};
+                    border:${sel ? '2px solid #000' : '2px dashed #999'}; border-radius:4px;
+                    display:flex; align-items:center; justify-content:center; cursor:move; user-select:none;">
+                    <span style="font-size:${Math.max(14, Math.min(30, b.h * leScale * 0.35))}px; font-weight:bold; color:${sel ? '#000' : '#888'}; pointer-events:none; display:inline-block; transform:rotate(${boxRot(b)}deg);">${i + 1}</span>
+                    ${boxRot(b) ? `<span style="position:absolute; left:4px; top:3px; font-size:11px; font-weight:bold; color:${sel ? '#000' : '#888'}; pointer-events:none;">⟳ ${boxRot(b)}°</span>` : ''}
+                    ${sel ? `<div data-le-handle="${i}" style="position:absolute; right:-4px; bottom:-4px; width:26px; height:26px;
+                        background:#000; border:2px solid #fff; box-sizing:border-box; border-radius:6px; cursor:nwse-resize; touch-action:none;"></div>` : ''}
+                </div>`;
+            });
+            stage.innerHTML = html;
+            // ผูก pointer หลังสร้าง DOM (แบบเดียวกับระบบลากสติ๊กเกอร์ — ใช้ pointer capture กัน scroll แย่งนิ้ว)
+            stage.querySelectorAll('[data-le-box]').forEach(el => {
+                el.addEventListener('pointerdown', (e) => leStartDrag(e, parseInt(el.getAttribute('data-le-box'), 10), 'move'));
+            });
+            stage.querySelectorAll('[data-le-handle]').forEach(el => {
+                el.addEventListener('pointerdown', (e) => {
+                    e.stopPropagation();
+                    leStartDrag(e, parseInt(el.getAttribute('data-le-handle'), 10), 'resize');
+                });
+            });
+        }
+
+        function leStartDrag(e, idx, mode) {
+            if (!leWork || !leWork.boxes[idx]) return;
+            e.preventDefault();
+            // แตะ = เลือก (วาดใหม่ให้เห็นกรอบทึบ + ปุ่มย่อขยาย) — การวาดใหม่ทำให้ e.target หลุดจาก DOM
+            // จึงต้องหยิบ element "ตัวปัจจุบัน" หลังวาด มาผูก pointer capture แทน (ไม่งั้นแตะครั้งแรกลากไม่ติด)
+            if (leSelected !== idx) { leSelected = idx; leRender(); }
+            const tgt = document.querySelector(mode === 'resize' ? `[data-le-handle="${idx}"]` : `[data-le-box="${idx}"]`) || e.target;
+            const b = leWork.boxes[idx];
+            leDrag = { mode, idx, sx: e.clientX, sy: e.clientY, ox: b.x, oy: b.y, ow: b.w, oh: b.h };
+            try { tgt.setPointerCapture(e.pointerId); } catch (er) {}
+            tgt.addEventListener('pointermove', leDragMove);
+            tgt.addEventListener('pointerup', leDragEnd);
+            tgt.addEventListener('pointercancel', leDragEnd);
+        }
+        function leDragMove(e) {
+            if (!leDrag || !leWork) return;
+            const d = leDrag, b = leWork.boxes[d.idx];
+            if (!b) return;
+            const dx = (e.clientX - d.sx) / leScale, dy = (e.clientY - d.sy) / leScale;
+            if (d.mode === 'move') { b.x = d.ox + dx; b.y = d.oy + dy; }
+            else { b.w = d.ow + dx; b.h = d.oh + dy; }
+            leClampBox(b);
+            // ระหว่างลากอัปเดตเฉพาะกล่องนี้ (ไม่ innerHTML ใหม่ — pointer capture จะหลุด)
+            const el = document.querySelector(`[data-le-box="${d.idx}"]`);
+            if (el) {
+                el.style.left = (b.x * leScale) + 'px'; el.style.top = (b.y * leScale) + 'px';
+                el.style.width = (b.w * leScale) + 'px'; el.style.height = (b.h * leScale) + 'px';
+            }
+        }
+        function leDragEnd(e) {
+            if (!leDrag) return;
+            const tgt = e.target;
+            try { tgt.releasePointerCapture(e.pointerId); } catch (er) {}
+            tgt.removeEventListener('pointermove', leDragMove);
+            tgt.removeEventListener('pointerup', leDragEnd);
+            tgt.removeEventListener('pointercancel', leDragEnd);
+            leDrag = null;
+            leRender();   // จบลากค่อยวาดใหม่ทั้งเวที (ตัวเลข/ปุ่มย่อขยายกลับมาตรงตำแหน่ง)
+        }
+
+        function leCancel() {
+            leWork = null; leEditingId = ''; leDrag = null;
+            toggleOverlay('overlay-layout-editor', false);
+        }
+        function leDone() {
+            if (!leWork) return;
+            const nameEl = document.getElementById('le-name');
+            const name = (nameEl ? nameEl.value : '').trim().slice(0, 30);
+            if (!name) { alert('ตั้งชื่อเลย์เอาต์ก่อนนะคะ'); return; }
+            if (!leWork.boxes.length) { alert('ต้องมีช่องรูปอย่างน้อย 1 ช่องค่ะ'); return; }
+            leWork.boxes.forEach(leClampBox);
+            if (leEditingId) {
+                const L = getCustomLayout(leEditingId);
+                const isRevision = L && L.status === 'approved' && L.revisionUsed !== true;
+                const editable = L && (L.status === 'draft' || isRevision);
+                if (editable) {
+                    // ปกที่ร้านอัปเอง (ไม่ใช่ปกผังอัตโนมัติ) ต้องอยู่ต่อหลังแก้ — เดิมโดนทับเป็นปกผังทุกครั้ง
+                    // (งานแบรนด์อัปปกโลโก้ไว้ แก้ใบเพื่อเพิ่มการหมุนรูป → หน้าลูกค้ากลายเป็นกล่องเทา — กองตรวจ 17 ก.ย.)
+                    // จดที่มาไว้ = เชื่อที่จด · ปกเก่าที่ไม่มีบันทึก (ก่อน html 51) = เทียบกับปกผังของใบก่อนแก้
+                    const src0 = coverSrcOf(L.id), curCover = layoutCoverOf(L.id);
+                    const userCover = src0 === 'user' || (src0 === '' && !!curCover && curCover !== makeLayoutSchematicCover(L));
+                    L.name = name; L.totalH = leWork.totalH;
+                    L.boxes = leWork.boxes.map(boxCopy);
+                    if (isRevision) L.revisionUsed = true;   // ใบที่ซื้อ: ใช้สิทธิ์แก้ 1 รอบตรงนี้ — หลังจากนี้ล็อกถาวร
+                    if (!userCover) { saveLayoutCover(L.id, makeLayoutSchematicCover(L)); setCoverSrc(L.id, 'auto'); }   // ปกออโต้ตามผังล่าสุด
+                }
+            } else {
+                // เช็คเพดานซ้ำตรงนี้อีกชั้น — ตอนกดเปิด editor เช็คแล้วก็จริง แต่ถ้าเปิดค้างไว้
+                // แล้วจำนวนใบเปลี่ยนระหว่างนั้น (เจอจริงตอนเทส 4 กย) done จะทะลุเพดานได้
+                if (customLayouts.length >= CUSTOM_LAYOUT_MAX) {
+                    alert('เลย์เอาต์เต็ม (' + CUSTOM_LAYOUT_MAX + ' อัน) — ลบอันเก่าก่อนถึงบันทึกใบนี้ได้ค่ะ');
+                    return;   // ไม่ปิด editor — งานที่ออกแบบไว้ยังอยู่ ให้ไปลบของเก่าแล้วค่อยกลับมากด done
+                }
+                const L = { v: 1, id: newCustomLayoutId(), name, totalH: leWork.totalH,
+                            boxes: leWork.boxes.map(boxCopy),
+                            // โหมดเทสไม่ต้องอนุมัติ: สร้างปุ๊บใช้ได้เลย (ตัวจริง = draft → ส่งขอ → รอแอดมิน)
+                            status: LAYOUT_TEST_NO_APPROVAL ? 'approved' : 'draft',
+                            hash: '', reqId: '', enabled: true, createdAt: Date.now() };
+                customLayouts.push(L);
+                saveLayoutCover(L.id, makeLayoutSchematicCover(L));
+                setCoverSrc(L.id, 'auto');
+            }
+            saveCustomLayouts();
+            leWork = null; leEditingId = ''; leDrag = null;
+            toggleOverlay('overlay-layout-editor', false);
+            renderLayoutEditUI();
+        }
+
+        // ===== รหัสเลย์เอาต์ (แชร์งานออกแบบข้ามตู้) =====
+        // รหัสพกงานออกแบบไว้ในตัวเอง (ความยาวใบ + ตำแหน่งช่องรูปทุกช่อง) ไม่ต้องมีเซิร์ฟเวอร์/เน็ต
+        // ตัวอักษรใช้ชุด Crockford base32 = ตัด I L O U ทิ้ง แล้วยังรับ I/L เป็น 1 และ O เป็น 0 ตอนถอดรหัส
+        // (พิมพ์ผิดคู่ที่คนพลาดบ่อยสุดบนแท็บเล็ต) + ตัวตรวจ 10 บิตท้ายรหัส กันพิมพ์ผิดแล้วได้ใบเพี้ยนเงียบๆ
+        // ผังบิต v2: 4 เวอร์ชัน · 12 ความยาวใบ · 3 (จำนวนช่อง-1) · ต่อช่อง [10 x · 12 y · 10 w · 12 h] · 10 ตัวตรวจ CRC-10
+        // (v1 ใช้ djb2 เป็นตัวตรวจ — กองตรวจ 10 กย พบว่าสลับตัวอักษรข้างกัน/6↔9 ผ่านได้ 7% → เลิกใช้ v1 ทั้งหมด)
+        // 1 ช่อง = 73 บิต = 15 ตัวอักษร (โชว์เป็น 3 กลุ่ม กลุ่มละ 5)
+        // v3 (17 ก.ย. 2569) = v2 + ต่อช่องอีก 2 บิต [มุมหมุน/90] — ออก v3 "เฉพาะใบที่มีช่องหมุน"
+        //   ใบไม่หมุนออก v2 เหมือนเดิมทุกตัวอักษร: รหัสที่ส่งให้ลูกค้าไปแล้ว (เช่น Dyson) ใช้ได้ตลอด
+        //   และตู้ที่ยังไม่ได้ html 51 ยังรับรหัสใบไม่หมุนได้ (รหัส v3 ตู้เก่าจะบอกว่ารหัสไม่ถูกต้อง = ปลอดภัย ไม่ได้ใบเพี้ยน)
+        const LC_ALPHA = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+        function lcBits(v, w) { let s = ''; for (let i = w - 1; i >= 0; i--) s += ((v >> i) & 1); return s; }
+        // CRC-10 (poly 0x233) บนสายบิต — จับได้ทุกกรณีที่เปลี่ยน 1 ตัวอักษร และทุกการสลับตัวอักษรที่อยู่ติดกัน
+        // (ความผิดพลาดที่กินพื้นที่ไม่เกิน 10 บิต CRC-10 จับได้ 100% ตามทฤษฎี)
+        function lcSum(bits) {
+            let r = 0;
+            for (let i = 0; i < bits.length; i++) {
+                const fb = ((r >> 9) & 1) ^ (bits.charCodeAt(i) & 1);
+                r = (r << 1) & 0x3FF;
+                if (fb) r ^= 0x233;
+            }
+            return r;
+        }
+        function layoutCodeEncode(L) {
+            if (!L || !L.boxes || !L.boxes.length || L.boxes.length > 8) return '';
+            const v3 = L.boxes.some(x => boxRot(x));
+            let b = lcBits(v3 ? 3 : 2, 4) + lcBits(L.totalH, 12) + lcBits(L.boxes.length - 1, 3);
+            for (const x of L.boxes) {
+                b += lcBits(x.x, 10) + lcBits(x.y, 12) + lcBits(x.w, 10) + lcBits(x.h, 12);
+                if (v3) b += lcBits(boxRot(x) / 90, 2);
+            }
+            b += lcBits(lcSum(b), 10);
+            while (b.length % 5) b += '0';
+            let out = '';
+            for (let i = 0; i < b.length; i += 5) out += LC_ALPHA[parseInt(b.slice(i, i + 5), 2)];
+            return out.replace(/(.{5})(?=.)/g, '$1-');   // ขีดคั่นไว้อ่านง่าย ตอนพิมพ์กลับจะใส่หรือไม่ใส่ก็ได้
+        }
+        function layoutCodeDecode(str) {
+            const s = String(str || '').toUpperCase().replace(/[^0-9A-Z]/g, '')
+                                       .replace(/[IL]/g, '1').replace(/O/g, '0');
+            if (s.length < 15) return null;
+            let b = '';
+            for (const ch of s) { const i = LC_ALPHA.indexOf(ch); if (i < 0) return null; b += lcBits(i, 5); }
+            const rd = (p, w) => parseInt(b.slice(p, p + w), 2);
+            const ver = rd(0, 4);
+            if (ver !== 2 && ver !== 3) return null;               // เวอร์ชันรหัสที่ตู้นี้ยังไม่รู้จัก
+            const per = (ver === 3) ? 46 : 44;                     // v3 มีมุมหมุนต่อช่องอีก 2 บิต
+            const totalH = rd(4, 12), cnt = rd(16, 3) + 1;
+            const need = 19 + cnt * per;
+            // ความยาวต้องพอดีเป๊ะ + บิตเติมท้ายต้องเป็นศูนย์ — กันพิมพ์ตัวเกิน/ขาดแล้วยังผ่าน
+            if (s.length !== Math.ceil((need + 10) / 5)) return null;
+            if (/1/.test(b.slice(need + 10))) return null;
+            if (lcSum(b.slice(0, need)) !== rd(need, 10)) return null;   // พิมพ์ผิด
+            const boxes = [];
+            for (let i = 0; i < cnt; i++) {
+                const p = 19 + i * per;
+                const bx = { x: rd(p, 10), y: rd(p + 10, 12), w: rd(p + 22, 10), h: rd(p + 32, 12) };
+                if (ver === 3) { const r = rd(p + 44, 2) * 90; if (r) bx.r = r; }
+                boxes.push(bx);
+            }
+            if (totalH < CUSTOM_H_MIN || totalH > CUSTOM_H_MAX) return null;
+            for (const x of boxes) {
+                if (x.w < CUSTOM_BOX_MIN || x.h < CUSTOM_BOX_MIN) return null;
+                if (x.w > x.h * 4 || x.h > x.w * 4) return null;   // กติกาเดียวกับ leClampBox — ไม่งั้นกดแก้ไขแล้วช่องถูกบีบเงียบๆ
+                if (x.x < 0 || x.x + x.w > 576 || x.y < 0 || x.y + x.h > totalH) return null;
+            }
+            return { totalH, boxes };
+        }
+        // โชว์รหัสของใบนี้ให้ก๊อง/ร้าน ก๊อปไปส่งไลน์ได้
+        function showLayoutCode(id) {
+            const L = getCustomLayout(id);
+            if (!L) return;
+            const code = layoutCodeEncode(L);
+            if (!code) { alert('สร้างรหัสไม่สำเร็จค่ะ'); return; }
+            alert('รหัสเลย์เอาต์ "' + L.name + '"\n\n        ' + code + '\n\n' +
+                  L.boxes.length + ' ช่อง · ยาว ' + layoutCmLabel(L.totalH) + '\n' +
+                  'ส่งรหัสนี้ให้ตู้อื่นพิมพ์ จะได้ใบเดียวกันเป๊ะทุกพิกเซล\n' +
+                  '(รหัสพาแค่ "รูปทรงใบ" — ไฟล์กรอบต้องอัปที่ตู้นั้นเอง)' +
+                  (L.boxes.some(b => boxRot(b))
+                      ? '\n\n⚠ ใบนี้มีช่องหมุนรูป — ตู้ปลายทางต้องอัปเดตหน้าจอเป็นรุ่นล่าสุดก่อน ไม่งั้นจะขึ้นว่ารหัสไม่ถูกต้อง'
+                      : ''));
+        }
+        // พิมพ์รหัสเพื่อรับงานออกแบบเข้าตู้นี้
+        function importLayoutCode() {
+            if (customLayouts.length >= CUSTOM_LAYOUT_MAX) { alert('เลย์เอาต์เต็ม (' + CUSTOM_LAYOUT_MAX + ' อัน) — ลบอันเก่าก่อนนะคะ'); return; }
+            const raw = prompt('พิมพ์รหัสเลย์เอาต์ที่ได้รับมา\n(ขีดคั่นจะใส่หรือไม่ใส่ก็ได้)');
+            if (raw === null) return;
+            const g = layoutCodeDecode(raw);
+            if (!g) { alert('รหัสไม่ถูกต้องค่ะ — ลองเช็คตัวอักษรอีกครั้ง\n(0 กับ O และ 1 กับ I/L ระบบเข้าใจให้เองแล้ว)'); return; }
+            // ให้เห็นก่อนว่ากำลังจะได้อะไร — รหัสที่ถูกต้องแต่ "ผิดใบ" คือความผิดพลาดที่ตัวตรวจจับไม่ได้
+            if (!confirm('รับเลย์เอาต์นี้ไหมคะ?\n\n· ' + g.boxes.length + ' ช่องรูป\n· ยาว ' + layoutCmLabel(g.totalH) +
+                         ' (576 × ' + g.totalH + ' px)\n\nรับแล้วยังต้องส่งขออนุมัติของตู้นี้เองนะคะ')) return;
+            const name = cutText((prompt('ตั้งชื่อใบนี้', 'เลย์เอาต์ที่รับมา') || '').trim(), 30) || 'เลย์เอาต์ที่รับมา';
+            // ⚠ ใบที่รับมาต้องเป็น "ร่าง" เสมอ — ห้ามอ่านธง LAYOUT_TEST_NO_APPROVAL ตรงนี้เด็ดขาด
+            //   ไม่งั้นวันไหนธงหลุดเป็น true ทุกตู้ที่พิมพ์รหัสจะได้ใบใช้ฟรี = ระบบเก็บเงินรายตู้พังทั้ง fleet
+            const L = { v: 1, id: newCustomLayoutId(), name, totalH: g.totalH,
+                        boxes: g.boxes.map(boxCopy),
+                        status: 'draft', hash: '', reqId: '', enabled: true, createdAt: Date.now() };
+            customLayouts.push(L);
+            ensureFrameCat(L.id);
+            // ไม่แถมช่องกรอบว่างให้ (เคยแถม แล้วกองตรวจพบว่าถ้าร้านยังไม่อัปกรอบ ลูกค้าจะเจอหน้าเลือกกรอบที่มีการ์ด BASIC ใบเดียว)
+            // ใบที่ไม่มีช่องกรอบ = ข้ามหน้าเลือกกรอบไปถ่ายเลย เหมือนใบที่สร้างเองในตัวแก้
+            saveCustomLayouts();
+            saveLayoutCover(L.id, makeLayoutSchematicCover(L));
+            setCoverSrc(L.id, 'auto');
+            renderLayoutEditUI();
+            alert('รับเลย์เอาต์ "' + name + '" แล้วค่ะ 🎉\n\nขั้นต่อไป:\n1) frame edit → Your Layout → "' + name + '" → ＋ เพิ่มกรอบ → อัปสี\n2) กลับมาหน้านี้ กด "ส่งขออนุมัติ"');
+        }
+
+        // ===== ส่งขอ/เช็คอนุมัติเลย์เอาต์ custom ผ่าน Firestore (จ่าย 1 สร้าง 1) =====
+        // ตู้ทำได้แค่ "สร้างคำขอสถานะ pending" — กฎ Firestore ปิด update/delete ตาย
+        // คนเดียวที่เปลี่ยนเป็น approved ได้คือแอดมินใน Firebase console (console ข้ามกฎ)
+        // ยิงผ่าน appHttp (สะพาน v1.28) / ตอนเทสในเบราว์เซอร์ไม่มีสะพาน → fetch ตรง (Firestore เปิด CORS)
+        const LAYOUT_FS_BASE = 'https://firestore.googleapis.com/v1/projects/theeternityrp/databases/(default)/documents';
+        const LAYOUT_FS_KEY = 'AIzaSyAGLpI3AtlBurgePfF7vUN_BrxtwM233b4';   // web API key (สาธารณะอยู่แล้ว — ความปลอดภัยอยู่ที่กฎ)
+
+        // ลายนิ้วมือของงานออกแบบ (djb2) — แช่แข็งตอนส่งขอ ให้การอนุมัติผูกกับ "หน้าตานี้" เป๊ะๆ
+        // ผูกกับ "รูปทรงใบ" อย่างเดียว ไม่ผูกกับชื่อ (10 กย): ชื่อคือป้ายกำกับ ไม่ใช่สิ่งที่ซื้อ
+        //   - เปลี่ยนชื่อใบที่อนุมัติแล้ว = ไม่หลุดสิทธิ์
+        //   - ตู้หลายเครื่องที่รับรหัสเดียวกันจะได้ hash ตรงกัน ก๊องเช็คได้ทันทีว่า "5 ตู้ใบเดียวกันจริง"
+        function layoutHash(L) {
+            const s = JSON.stringify({ totalH: L.totalH, boxes: L.boxes });
+            let h = 5381;
+            for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+            return (h >>> 0).toString(16);
+        }
+        // hash สูตรเดิม (ผูกชื่อด้วย) — ใบที่ส่งขอไว้ก่อน 10 กย ถือ hash สูตรนี้ ต้องรับได้ด้วย
+        // ไม่งั้นก๊องกดอนุมัติแล้ว ตู้เช็คไม่ผ่านตลอดกาล (ใบรอตรวจแก้ชื่อไม่ได้อยู่แล้ว ชื่อจึงคงที่)
+        function layoutHashLegacy(L) {
+            const s = JSON.stringify({ name: L.name, totalH: L.totalH, boxes: L.boxes });
+            let h = 5381;
+            for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+            return (h >>> 0).toString(16);
+        }
+        async function fsLayoutHttp(method, url, bodyObj) {
+            if (window.Android && window.Android.httpRequest) {
+                const r = await appHttp(method, url, {}, bodyObj ? JSON.stringify(bodyObj) : '', 'application/json');
+                return { status: r.status, body: r.body || '' };
+            }
+            const res = await fetch(url, {
+                method,
+                headers: bodyObj ? { 'Content-Type': 'application/json' } : undefined,
+                body: bodyObj ? JSON.stringify(bodyObj) : undefined
+            });
+            return { status: res.status, body: await res.text() };
+        }
+        function kioskDeviceId() {
+            try { if (window.Android && window.Android.getDeviceId) return String(window.Android.getDeviceId() || ''); } catch (e) {}
+            // เทสในเบราว์เซอร์: id ปลอมคงที่ต่อเครื่อง (ตู้จริงมี ANDROID_ID เสมอ)
+            try {
+                let d = localStorage.getItem('debugDeviceId');
+                if (!d) { d = 'webtest' + Math.random().toString(36).slice(2, 10); localStorage.setItem('debugDeviceId', d); }
+                return d;
+            } catch (e) { return ''; }
+        }
+        // ตัดข้อความให้ยาวไม่เกิน n โดยไม่ผ่าอีโมจิกลางตัว — ให้ไม่เกินทั้งแบบนับตัวอักษรและแบบนับ UTF-16
+        // (.slice ธรรมดาอาจเหลือครึ่งตัวอีโมจิ ส่งขึ้นเซิร์ฟเวอร์แล้วเพี้ยน/โดนปฏิเสธ)
+        function cutText(s, n) {
+            const a = Array.from(String(s || ''));
+            if (a.length > n) a.length = n;
+            while (a.length && a.join('').length > n) a.pop();
+            return a.join('');
+        }
+        // รหัสไลเซนส์ของตู้นี้ (สะพานใหม่ v1.29) — ตู้รุ่นเก่ายังไม่มี คืนค่าว่างแล้วข้ามไป
+        function kioskLicenseKey() {
+            try { if (window.Android && window.Android.getLicenseKey) return String(window.Android.getLicenseKey() || '').slice(0, 40); } catch (e) {}
+            return '';
+        }
+        // ฟิลด์ "ส่วนเกิน" ที่กฎ Firestore รุ่นเก่ายังไม่รู้จัก (hasOnly ล็อกชื่อฟิลด์ไว้ตายตัว)
+        const LAYOUT_REQ_EXTRA = ['boxes', 'code', 'licenseKey'];
+        function layoutBridgeReady() {
+            // ตู้จริงแต่ APK เก่ากว่า v1.28 = ไม่มีสะพาน → ส่งขอไม่ได้ (อย่างอื่นใช้ได้หมด)
+            return !window.Android || !!(window.Android.httpRequest);
+        }
+
+        async function submitLayoutRequest(id) {
+            const L = getCustomLayout(id);
+            if (!L || L.status !== 'draft') return;
+            if (!layoutBridgeReady()) { alert('ต้องอัปเดตแอปก่อนถึงส่งขออนุมัติได้ค่ะ — เมนู option → app update'); return; }
+            if (!confirm('ส่งขออนุมัติ "' + L.name + '" ?\n\n· ส่งแล้วแก้ไขใบนี้ไม่ได้อีก (แก้ = สร้างใหม่ + ขอใหม่)\n· ติดต่อแอดมินเพื่อชำระค่าบริการ แล้วแอดมินจะกดอนุมัติให้ค่ะ')) return;
+            const dev = kioskDeviceId();
+            if (!dev) { alert('อ่านรหัสเครื่องไม่ได้ ลองใหม่อีกครั้งนะคะ'); return; }
+            const hash = layoutHash(L);
+            const reqId = dev + '_' + L.id;
+            const body = { fields: {
+                deviceId: { stringValue: dev },
+                layoutId: { stringValue: L.id },
+                name:     { stringValue: L.name },
+                boxCount: { integerValue: String(L.boxes.length) },
+                totalH:   { integerValue: String(L.totalH) },
+                // แนบผังจริงมาด้วย ไม่งั้นก๊องกดอนุมัติโดยไม่เห็นว่าเขาออกแบบอะไร
+                // + รหัสของใบนี้ ก๊องเอาไปเทียบได้ว่าตู้อื่นใช้ใบเดียวกันจริงไหม
+                // ⚠ กฎ Firestore ที่วางไว้ใช้ hasOnly([...]) = ล็อก "ชื่อฟิลด์" ไว้ตายตัว
+                //   ฟิลด์ที่ไม่อยู่ในลิสต์ทำให้คำขอโดนปฏิเสธทั้งใบ (403) — เจอจริงบนตู้ 10 กย 2569
+                //   จึงต้องส่งแบบมีฟิลด์ใหม่ก่อน แล้วถ้าโดน 403 ค่อยถอยไปใช้ชุดฟิลด์เดิม
+                //   => กฎเก่าก็ส่งได้ พอก๊องอัปกฎเมื่อไหร่ ข้อมูลชุดเต็มไหลตามเองโดยไม่ต้องอัปหน้าจอซ้ำ
+                boxes:    { stringValue: JSON.stringify(L.boxes) },
+                code:     { stringValue: layoutCodeEncode(L) },
+                hash:     { stringValue: hash },
+                ts:       { integerValue: String(Date.now()) },
+                status:   { stringValue: 'pending' }
+            } };
+            // รหัสไลเซนส์ = "ตู้ของร้านไหน" (Device ID เป็นเลขเครื่องล้วนๆ ก๊องอ่านไม่ออก)
+            // ตู้ APK เก่ายังไม่มีสะพานนี้ → ไม่มีก็ไม่ต้องแนบ ระบบทำงานเหมือนเดิมทุกประการ
+            const lic = kioskLicenseKey();
+            if (lic) {
+                body.fields.licenseKey = { stringValue: lic };
+                // แปะรหัสตู้ไว้หน้าชื่อในเอกสารคำขอด้วย — name เป็นฟิลด์ที่กฎเดิมยอมอยู่แล้ว
+                // → ก๊องเห็นใน Firebase ได้ "ทันที" ไม่ต้องรอวางกฎ v2 (ชื่อในตู้ยังเหมือนเดิม แตะแค่เอกสารคำขอ)
+                // ตัดที่ 60 ตัวตามกฎ รหัสตู้อยู่หน้าสุด → ถ้ายาวเกินโดนตัดแค่ท้ายชื่อ ไม่ตัดรหัส
+                body.fields.name = { stringValue: cutText('[' + lic + '] ' + L.name, 60) };
+            }
+            const postReq = (b) => fsLayoutHttp('POST', LAYOUT_FS_BASE + '/layout_requests?documentId=' + encodeURIComponent(reqId) + '&key=' + LAYOUT_FS_KEY, b);
+            const slimBody = () => {
+                const s = { fields: Object.assign({}, body.fields) };
+                LAYOUT_REQ_EXTRA.forEach(k => delete s.fields[k]);
+                return s;
+            };
+            let r;
+            try {
+                // ส่งชุดเต็มก่อนเสมอ โดน 403 (กฎเก่า) ค่อยถอยชุดสั้น — ไม่จำผลไว้ถาวร
+                // (เคยจำไว้แล้วพบว่าผิด: ก๊องวางกฎ v2 ทีหลัง ตู้ที่เคยจำจะไม่ส่งชุดเต็มอีกเลย)
+                // ส่งคำขอนานๆ ครั้ง เสียรอบยิงเปล่า 1 ครั้งไม่มีผลอะไร
+                r = await postReq(body);
+                if (r.status === 403) r = await postReq(slimBody());
+            } catch (e) { alert('ส่งไม่สำเร็จ — เช็คอินเทอร์เน็ตแล้วลองใหม่นะคะ'); return; }
+            if (r.status === 200) {
+                L.status = 'pending'; L.hash = hash; L.reqId = reqId; L.submittedAt = Date.now();
+                saveCustomLayouts(); renderLayoutEditUI();
+                alert('ส่งคำขอแล้วค่ะ 🎉\nแจ้งแอดมิน + ชำระค่าบริการ แล้วกลับมากด "เช็คสถานะ" ได้เลย\n\n'
+                    + (lic ? 'รหัสตู้ (บอกแอดมิน): ' + lic + '\n' : '')
+                    + 'รหัสเครื่อง (บอกแอดมิน): ' + dev);
+            } else if (r.status === 409) {
+                // เคยส่งใบนี้ไปแล้ว (เช่นเน็ตหลุดตอนรอคำตอบ 200) → ต้องอ่าน doc จริงบนเซิร์ฟเวอร์ก่อน
+                // ห้ามทับ hash มั่วๆ: ถ้าระหว่างนั้นร้านแก้งานออกแบบไปแล้ว doc เก่าถือ "หน้าตาเก่า" —
+                // จับคู่กับงานใหม่ไม่ได้ (อนุมัติมาก็ปลดล็อกไม่ได้ เพราะเช็ค hash ไม่ผ่านตลอดกาล)
+                let serverHash = '';
+                try {
+                    const g = await fsLayoutHttp('GET', LAYOUT_FS_BASE + '/layout_requests/' + encodeURIComponent(reqId) + '?key=' + LAYOUT_FS_KEY, null);
+                    if (g.status === 200) {
+                        const gf = (JSON.parse(g.body) || {}).fields || {};
+                        serverHash = (gf.hash && gf.hash.stringValue) || '';
+                    }
+                } catch (e) { alert('ใบนี้เคยถูกส่งไว้แล้ว แต่เช็คกับเซิร์ฟเวอร์ไม่สำเร็จ — เช็คเน็ตแล้วลองใหม่นะคะ'); return; }
+                if (serverHash && serverHash !== hash && serverHash !== layoutHashLegacy(L)) {
+                    // doc บนเซิร์ฟเวอร์เป็นเวอร์ชันก่อนแก้ — ใบปัจจุบันต้องส่งเป็นคำขอใหม่ (id ใหม่)
+                    L.status = 'rejected';
+                    L.note = 'ใบนี้เคยถูกส่งไปด้วยหน้าตาเก่าก่อนแก้ไข — กด "ก๊อปเป็นร่าง" แล้วส่งขอใหม่นะคะ';
+                    saveCustomLayouts(); renderLayoutEditUI();
+                    alert(L.note);
+                } else {
+                    L.status = 'pending'; L.hash = serverHash || hash; L.reqId = reqId; L.submittedAt = L.submittedAt || Date.now();
+                    saveCustomLayouts(); renderLayoutEditUI();
+                    checkLayoutApproval(id);
+                }
+            } else {
+                alert('เซิร์ฟเวอร์ปฏิเสธคำขอ (' + r.status + ') — ลองใหม่ ถ้ายังไม่ได้แจ้งแอดมินนะคะ');
+            }
+        }
+
+        async function checkLayoutApproval(id, silent) {
+            const L = getCustomLayout(id);
+            // เช็คได้ทั้งใบ "รอตรวจ" และใบ "ไม่ผ่าน" — แอดมินแก้ใจใน console เป็น approved ทีหลังได้ ตู้ต้องเห็น
+            if (!L || (L.status !== 'pending' && L.status !== 'rejected') || !L.reqId) return;
+            let r;
+            try {
+                r = await fsLayoutHttp('GET', LAYOUT_FS_BASE + '/layout_requests/' + encodeURIComponent(L.reqId) + '?key=' + LAYOUT_FS_KEY, null);
+            } catch (e) { if (!silent) alert('เช็คไม่สำเร็จ — เช็คอินเทอร์เน็ตแล้วลองใหม่นะคะ'); return; }
+            if (r.status === 404) { if (!silent) alert('ไม่พบคำขอบนเซิร์ฟเวอร์ — ลองส่งใหม่ หรือติดต่อแอดมินค่ะ'); return; }
+            if (r.status !== 200) { if (!silent) alert('เช็คไม่สำเร็จ (' + r.status + ') ลองใหม่อีกครั้งนะคะ'); return; }
+            let f = null;
+            try { f = (JSON.parse(r.body) || {}).fields || {}; } catch (e) { return; }
+            const st = (f.status && f.status.stringValue) || 'pending';
+            if (st === 'approved') {
+                // การอนุมัติผูกกับเครื่องนี้ + งานออกแบบหน้าตานี้เท่านั้น
+                const okDev = (f.deviceId && f.deviceId.stringValue) === kioskDeviceId();
+                const okHash = (f.hash && f.hash.stringValue) === L.hash && (layoutHash(L) === L.hash || layoutHashLegacy(L) === L.hash);
+                if (okDev && okHash) {
+                    L.status = 'approved'; L.enabled = true; L.approvedAt = Date.now();
+                    saveCustomLayouts(); renderLayoutEditUI();
+                    if (!silent) alert('อนุมัติแล้วค่ะ 🎉 "' + L.name + '" พร้อมโชว์ให้ลูกค้าเลือกทันที');
+                } else if (!silent) {
+                    alert('ข้อมูลอนุมัติไม่ตรงกับเครื่อง/งานออกแบบนี้ — ติดต่อแอดมินนะคะ');
+                }
+            } else if (st === 'rejected') {
+                L.status = 'rejected';
+                L.note = (f.note && f.note.stringValue) || '';
+                saveCustomLayouts(); renderLayoutEditUI();
+                if (!silent) alert('ใบนี้ไม่ผ่านการอนุมัติค่ะ' + (L.note ? '\nเหตุผล: ' + L.note : ''));
+            } else if (!silent) {
+                alert('ยังรอตรวจอยู่ค่ะ — ถ้าชำระแล้วลองแจ้งแอดมินอีกครั้งนะคะ');
+            }
+        }
+
+        // เช็คทุกใบที่ค้าง "รอตรวจ" (เงียบๆ) — ตอนเปิดหน้า layout edit + หลังบูตถ้ามีใบค้าง
+        async function checkLayoutApprovals(showAlerts) {
+            const pend = customLayouts.filter(L => L.status === 'pending');
+            for (const L of pend) {
+                try { await checkLayoutApproval(L.id, !showAlerts); } catch (e) {}
+            }
+        }
+        function checkLayoutApprovalsOnBoot() {
+            try {
+                if (layoutSystemOn() && customLayouts.some(L => L.status === 'pending')) checkLayoutApprovals(false);
+            } catch (e) {}
+        }
+
         function selectLayout(type) {
             currentLayout = type;
-            totalPhotos = (type === 'solo') ? 1 : (type === 'strip' ? 3 : (type === 'grid' ? 4 : 6));
+            // จำนวนช็อต = จำนวนช่องรูปจริงของเลย์เอาต์ (แหล่งความจริงเดียว — custom ได้ด้วย)
+            totalPhotos = getLayoutGeom(type).boxes.length;
+            const cat = categoryOf(type);
+            // เลย์เอาต์ custom ที่ร้านยังไม่เพิ่มกรอบเลย = ใบขาวสะอาด → ข้ามหน้าเลือกกรอบ
+            // (frameFull ของหมวดนี้คืนค่าว่าง → ov = null → composeReceipt เดินทางไม่มีกรอบเองโดยธรรมชาติ)
+            if (isCustomLayout(cat)) {
+                ensureFrameCat(cat);
+                if (!(frameCounts[cat] > 0)) { confirmFrameSelection(1); return; }
+            }
             // สวิตช์ปิดหน้าเลือกกรอบ → ใช้กรอบแรกเลย ไม่ต้องให้ลูกค้าเลือก
             if (!showFrameChoice) { confirmFrameSelection(1); return; }
             updateStylePreviews();   // โชว์กรอบของกลุ่มที่ตรงกับเลย์เอาต์ที่เลือก
@@ -3200,7 +4562,13 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         // พรีวิวในหน้า "Choose Your Style" — สร้างการ์ดกรอบไดนามิก (ไม่จำกัดจำนวน, ไม่มีป้าย Style) ของกลุ่มปัจจุบัน
         function updateStylePreviews() {
             const cat = currentCategory();
-            const ratio = (cat === 'sg') ? '4 / 5' : '9 / 16';
+            ensureFrameCat(cat);
+            // การ์ดพรีวิว: กลุ่มเดิมสัดส่วนตายตัว / custom ใช้สัดส่วนใบจริงของเลย์เอาต์นั้น
+            let ratio;
+            if (isCustomLayout(cat)) {
+                const L = getCustomLayout(cat);
+                ratio = '576 / ' + ((L && L.totalH) ? L.totalH : 1024);
+            } else ratio = (cat === 'sg') ? '4 / 5' : '9 / 16';
             const wrap = document.getElementById('frame-cards');
             if (!wrap) return;
             // 3 อันหรือน้อยกว่า = เรียงแถวเดียวเหมือนเดิม / มากกว่านั้น = ตาราง 3 ช่องต่อแถว
@@ -3518,20 +4886,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             showPage('page-camera');
             applyMirrorToPreview();   // ภาพบนจอต้องตรงกับรูปที่จะได้จริง (ตั้งค่าในเมนู camera setting)
             // ปรับกรอบพรีวิวกล้องให้ "ตรงสัดส่วนช่องจริง" ที่จะออก (ผู้ใช้เห็นเท่าที่จะปริ้นตั้งแต่ตอนถ่าย)
-            // คำนวณ w/h ให้พอดีจอโดยรักษาสัดส่วนเป๊ะ (กันบั๊ก maxWidth ทำให้เพี้ยนเป็นเกือบ 1:1)
             const geom = getLayoutGeom(currentLayout);
-            const camBox = document.querySelector('#page-camera .cam-box');
-            if (camBox) {
-                const ratio = geom.cellW / geom.cellH;       // กว้าง/สูง ของช่อง = สัดส่วนรูปที่จะออกจริง
-                const maxW = window.innerWidth * 0.9;
-                const maxH = window.innerHeight * 0.6;
-                let w = maxW, h = w / ratio;
-                if (h > maxH) { h = maxH; w = h * ratio; }
-                camBox.style.width = Math.round(w) + 'px';
-                camBox.style.height = Math.round(h) + 'px';
-                camBox.style.maxWidth = 'none';
-                camBox.style.aspectRatio = 'auto';
-            }
+            sizeCamBoxForShot(0);
             const dots = document.getElementById('dots-container');
             dots.innerHTML = '';
             for(let i=0; i<totalPhotos; i++) dots.innerHTML += '<div class="dot"></div>';
@@ -3553,7 +4909,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 videoEl.srcObject = stream;
                 // โหมดฟิชอาย: เรนเดอร์ WebGL ทับวิดีโอ (เห็นโป่งสดๆ) — เปิด WebGL ไม่ได้ → fallback กล้องปกติ
                 stopFisheye();
-                if (cameraMode === 'fisheye' && startFisheye(videoEl, geom.cellW / geom.cellH)) {
+                if (cameraMode === 'fisheye' && startFisheye(videoEl, shotRatio(geom, 0))) {
                     feCanvas.style.display = 'block';
                 } else if (feCanvas) {
                     feCanvas.style.display = 'none';
@@ -3624,16 +4980,16 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             gifClips[idx] = [];
             gifSampleTimer = setInterval(() => {
                 try {
-                    const fr = sampleGifFrame();
+                    const fr = sampleGifFrame(idx);
                     if (fr) { const a = gifClips[idx]; a.push(fr); if (a.length > GIF_MAX_FRAMES) a.shift(); }  // เก็บเฉพาะ 3 วิสุดท้าย
                 } catch (e) {}
             }, Math.round(1000 / GIF_FPS));
         }
         function stopGifSampling() { if (gifSampleTimer) { clearInterval(gifSampleTimer); gifSampleTimer = null; } }
-        function sampleGifFrame() {
-            // crop สัดส่วนเดียวกับ snap() เป๊ะ แต่ย่อเล็ก (กว้าง 320) ประหยัดแรม
+        function sampleGifFrame(idx) {
+            // crop สัดส่วนเดียวกับ snap() เป๊ะ (ตามช่องของช็อตนี้) แต่ย่อเล็ก (กว้าง 320) ประหยัดแรม
             const geom = getLayoutGeom(currentLayout);
-            const targetRatio = geom.cellW / geom.cellH;
+            const targetRatio = shotRatio(geom, idx || 0);
             let src, vw, vh, mirror;
             if (cameraMode === 'fisheye' && fisheye && fisheye.gl) {
                 try { drawFisheyeOnce(); } catch (e) {}
@@ -3787,6 +5143,23 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             } catch (e) { console.error('GIF build failed', e); return null; }
         }
 
+        // ตั้งขนาดกรอบพรีวิวกล้องตามสัดส่วนช่องของ "ช็อตนี้" (เลย์เอาต์เดิมทุกช่องเท่ากัน = ขนาดนิ่งเหมือนเดิม /
+        // เลย์เอาต์ custom แต่ละช่องคนละสัดส่วนได้ — กรอบพรีวิวจะปรับตามช่องที่กำลังถ่าย)
+        // คำนวณ w/h ให้พอดีจอโดยรักษาสัดส่วนเป๊ะ (กันบั๊ก maxWidth ทำให้เพี้ยนเป็นเกือบ 1:1)
+        function sizeCamBoxForShot(idx) {
+            const camBox = document.querySelector('#page-camera .cam-box');
+            if (!camBox) return;
+            const ratio = shotRatio(getLayoutGeom(currentLayout), idx);   // กว้าง/สูง ของช่อง = สัดส่วนรูปที่จะออกจริง
+            const maxW = window.innerWidth * 0.9;
+            const maxH = window.innerHeight * 0.6;
+            let w = maxW, h = w / ratio;
+            if (h > maxH) { h = maxH; w = h * ratio; }
+            camBox.style.width = Math.round(w) + 'px';
+            camBox.style.height = Math.round(h) + 'px';
+            camBox.style.maxWidth = 'none';
+            camBox.style.aspectRatio = 'auto';
+        }
+
         function takeNext(idx, waited) {
             if (idx >= totalPhotos) { generatePreview(); return; }
             if (!camReady()) {   // รอเฟรมแรกสูงสุด 6 วิ แล้วถอยไปหน้าเลือกเลย์เอาต์ (ไม่วนไม่รู้จบ)
@@ -3796,6 +5169,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 setTimeout(() => takeNext(idx, w + 200), 200);
                 return;
             }
+            sizeCamBoxForShot(idx);   // ช่องช็อตนี้สัดส่วนอาจต่างจากช็อตก่อน (custom) — เลย์เอาต์เดิมค่าเท่าเดิมเป๊ะ
+            if (fisheye) fisheye.cellRatio = shotRatio(getLayoutGeom(currentLayout), idx);  // drawFisheyeOnce อ่านทุกเฟรม
             document.getElementById('status-text').innerText = `Photo ${idx+1}/${totalPhotos}`;
             startGifSampling(idx);   // โหมด GIF: เก็บภาพช่วงนับถอยหลังของช็อตนี้ (ไม่ใช่โหมด GIF = ไม่ทำอะไร)
             let count = captureSeconds;   // เวลานับถอยหลัง (ตั้งได้ 1–10 วิ ในเมนู capture time)
@@ -3863,9 +5238,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             const c = document.createElement('canvas');
             const ctx = c.getContext('2d');
 
-            // CROP รูปจากกล้องให้ตรง "สัดส่วนช่อง" ของเลย์เอาต์นั้น (เห็นเท่าที่จะปริ้นจริง)
+            // CROP รูปจากกล้องให้ตรง "สัดส่วนช่อง" ของช็อตนี้ (เห็นเท่าที่จะปริ้นจริง — custom แต่ละช่องต่างกันได้)
             const geom = getLayoutGeom(currentLayout);
-            const targetRatio = geom.cellW / geom.cellH;  // กว้าง / สูง
+            const targetRatio = shotRatio(geom, idx);  // กว้าง / สูง
             let sw, sh;
             if (vw / vh > targetRatio) { sh = vh; sw = vh * targetRatio; }
             else { sw = vw; sh = vw / targetRatio; }
@@ -3930,15 +5305,18 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 cx.drawImage(ovImg, 0, 0);
                 // map พิกัดช่องรูป (อ้างอิงที่ W×totalH) ลงบนขนาดจริงของไฟล์กรอบ
                 const sx = ovImg.width / geom.W, sy = ovImg.height / geom.totalH;
-                const wx = Math.round(geom.M * sx);
-                const wy = Math.round(geom.H_HDR * sy);
-                const ww = Math.max(1, Math.round(geom.winW * sx));
-                const wh = Math.max(1, Math.round(geom.winH * sy));
-                const data = cx.getImageData(wx, wy, ww, wh).data;
+                // เลย์เอาต์เดิม = ช่องรูปผืนเดียว (window) / custom = เช็คทุกช่องที่ร้านวางเอง
+                const wins = geom.custom
+                    ? geom.boxes.map(b => [b.x, b.y, b.w, b.h])
+                    : [[geom.M, geom.H_HDR, geom.winW, geom.winH]];
                 let transparent = 0, total = 0;
-                for (let p = 3; p < data.length; p += 16) {   // เช็ค alpha ทุกๆ 4 พิกเซลพอ (เร็วขึ้น)
-                    total++;
-                    if (data[p] < 50) transparent++;
+                for (const [x, y, w, h] of wins) {
+                    const data = cx.getImageData(Math.round(x * sx), Math.round(y * sy),
+                        Math.max(1, Math.round(w * sx)), Math.max(1, Math.round(h * sy))).data;
+                    for (let p = 3; p < data.length; p += 16) {   // เช็ค alpha ทุกๆ 4 พิกเซลพอ (เร็วขึ้น)
+                        total++;
+                        if (data[p] < 50) transparent++;
+                    }
                 }
                 return total > 0 && (transparent / total) > 0.15;
             } catch (e) { console.error('frameWindowIsCut', e); return false; }
@@ -4015,59 +5393,124 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             else if (layerMode === 'over') frameOnTop = false;
             else frameOnTop = ov ? ovCut : false;   // auto (ผลสแกน "เจาะรู" มาจากแคช คำนวณครั้งเดียวต่อกรอบ)
 
-            // วาดรูปถ่ายทุกใบลงช่อง (มี margin เว้นข้าง)
-            const drawPhotos = () => {
+            // วาดรูปถ่ายทุกใบลงช่อง — ตำแหน่งช่องมาจาก geom.boxes (สูตรกริดเดิมสำหรับ 4 เลย์เอาต์เดิม /
+            // ตำแหน่งอิสระที่ร้านออกแบบสำหรับเลย์เอาต์ custom) ช่องเลขมากวาดทีหลัง = อยู่บนถ้าทับกัน
+            const drawPhotos = (c) => {
                 for (let i = 0; i < imgs.length; i++) {
+                    const b = geom.boxes[i];
+                    if (!b) break;
                     if (!imgs[i]) continue;   // รูปที่อ่านไม่ได้ถูกข้ามไว้ — เว้นช่องว่างแทน
-                    const col = i % geom.cols;
-                    const row = Math.floor(i / geom.cols);
-                    const x = geom.xOffset + col * (geom.cellW + geom.G);
-                    const y = geom.H_HDR + row * (geom.cellH + geom.G);
-                    drawImageCover(ctx, imgs[i], x, y, geom.cellW, geom.cellH);
+                    const r = boxRot(b);
+                    if (!r) { drawImageCover(c, imgs[i], b.x, b.y, b.w, b.h); continue; }
+                    // ช่องหมุน: หมุนรอบจุดกลางช่อง แล้ววาดด้วยกว้าง/สูงสลับ (รูปถ่ายมาตามสัดส่วนสลับแล้ว ดู shotRatio)
+                    const side = (r === 90 || r === 270);
+                    const dw = side ? b.h : b.w, dh = side ? b.w : b.h;
+                    c.save();
+                    c.translate(b.x + b.w / 2, b.y + b.h / 2);
+                    c.rotate(r * Math.PI / 180);
+                    drawImageCover(c, imgs[i], -dw / 2, -dh / 2, dw, dh);
+                    c.restore();
                 }
             };
             // วางกรอบเต็มกระดาษ — ถ้ามีกรอบใช้กรอบ ไม่งั้นแถบดำหัว-ท้าย (อยู่นอกพื้นที่รูป ไม่บังรูป)
-            const drawFrame = () => {
+            const drawFrame = (c) => {
                 if (ov) {
-                    ctx.drawImage(ov, 0, 0, geom.W, geom.totalH);
+                    c.drawImage(ov, 0, 0, geom.W, geom.totalH);
                 } else {
-                    ctx.fillStyle = "#000";
-                    ctx.fillRect(0, 0, geom.W, geom.H_HDR);
-                    ctx.fillRect(0, geom.totalH - geom.H_FTR, geom.W, geom.H_FTR);
+                    c.fillStyle = "#000";
+                    c.fillRect(0, 0, geom.W, geom.H_HDR);
+                    c.fillRect(0, geom.totalH - geom.H_FTR, geom.W, geom.H_FTR);
                 }
             };
-
-            // frameOnTop: รูปอยู่ล่าง กรอบ PNG (เจาะรู) ทับบน → ทำกรอบได้หลากหลายขึ้น (ลวดลาย/มุมโค้ง/เงา ล้ำขอบรูปได้)
-            // ไม่งั้น: กรอบอยู่ล่าง รูปทับบน (แบบเดิม รองรับกรอบช่องรูปทึบที่ยังไม่ได้เจาะรู)
-            if (frameOnTop) { drawPhotos(); drawFrame(); }
-            else { drawFrame(); drawPhotos(); }
-
-            // วาดสติ๊กเกอร์ที่ลูกค้าตกแต่งไว้ทับลงรูป (พิกัด normalized 0-1 อ้างอิง "พื้นที่ใบเสร็จ" geom.totalH
+            // สติ๊กเกอร์ + ลายเส้นของลูกค้า (พิกัด normalized 0-1 อ้างอิง "พื้นที่ใบเสร็จ" geom.totalH
             // ไม่ใช่ canvas.height เพราะถ้ามีแถบ QR ล่าง canvas จะสูงกว่า → สติ๊กเกอร์จะเลื่อนลงผิดตำแหน่ง)
-            for (const s of placedStickers) {
-                try {
-                    const sImg = await loadImage(s.src);
-                    const sw = s.nw * geom.W;
-                    const sh = sw * (((sImg.naturalHeight || sImg.height) / (sImg.naturalWidth || sImg.width)) || 1);
-                    ctx.drawImage(sImg, s.nx * geom.W - sw / 2, s.ny * geom.totalH - sh / 2, sw, sh);
-                } catch (e) {}
-            }
-
-            // วาดเส้นที่ลูกค้าวาดด้วยนิ้ว (Draw) ทับลงรูป — พิกัด normalized อ้างอิงพื้นที่ใบเสร็จเหมือนสติ๊กเกอร์
-            // วาด "ก่อน" แปลงขาวดำ → รูปปริ้นจะเป็นเส้นสีเทา, รูปดิจิทัล/QR คงสีเดิม
-            for (const stk of drawStrokes) { try { drawOneStroke(ctx, geom.W, geom.totalH, stk); } catch (e) {} }
-
-            // แปลงเป็นขาวดำสำหรับปริ้นกระดาษ (ให้เส้น/ลายกรอบชัดบนเครื่องปริ้นความร้อน)
-            // + ปรับ offset/contrast ตามที่เจ้าของร้านตั้งในหน้า "print adjust" (เฉพาะรูปปริ้น ไม่กระทบรูปสี)
-            if (grayscale) {
-                const im = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const d = im.data;
-                for (let p = 0; p < d.length; p += 4) {
-                    let g = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
-                    g = Math.round(bwAdjust(g, bwOffset, bwContrast));
-                    d[p] = d[p + 1] = d[p + 2] = g;
+            // ลายเส้นวาด "ก่อน" แปลงขาวดำ → รูปปริ้นจะเป็นเส้นสีเทา, รูปดิจิทัล/QR คงสีเดิม
+            const drawDecor = async (c) => {
+                for (const s of placedStickers) {
+                    try {
+                        const sImg = await loadImage(s.src);
+                        const sw = s.nw * geom.W;
+                        const sh = sw * (((sImg.naturalHeight || sImg.height) / (sImg.naturalWidth || sImg.width)) || 1);
+                        c.drawImage(sImg, s.nx * geom.W - sw / 2, s.ny * geom.totalH - sh / 2, sw, sh);
+                    } catch (e) {}
                 }
-                ctx.putImageData(im, 0, 0);
+                for (const stk of drawStrokes) { try { drawOneStroke(c, geom.W, geom.totalH, stk); } catch (e) {} }
+            };
+
+            // ค่าปรับปริ้น: ถ้า "รูปถ่าย" กับ "กรอบ" ตั้งเท่ากัน = ทางเดิมทุกบรรทัด (ใบปริ้นเหมือนเดิมทุกพิกเซล)
+            // ตั้งไม่เท่ากันเท่านั้นถึงแยกวาดเป็นชั้น (รูป / กรอบ / ของตกแต่ง) แล้วปรับโทนแต่ละชั้นก่อนซ้อน
+            const pa = grayscale ? getPrintAdjust() : null;
+            const layered = !!(pa && !paSame(pa.photo, pa.frame));
+
+            if (!layered) {
+                // frameOnTop: รูปอยู่ล่าง กรอบ PNG (เจาะรู) ทับบน → ทำกรอบได้หลากหลายขึ้น (ลวดลาย/มุมโค้ง/เงา ล้ำขอบรูปได้)
+                // ไม่งั้น: กรอบอยู่ล่าง รูปทับบน (แบบเดิม รองรับกรอบช่องรูปทึบที่ยังไม่ได้เจาะรู)
+                if (frameOnTop) { drawPhotos(ctx); drawFrame(ctx); }
+                else { drawFrame(ctx); drawPhotos(ctx); }
+                await drawDecor(ctx);
+
+                // แปลงเป็นขาวดำสำหรับปริ้นกระดาษ (ให้เส้น/ลายกรอบชัดบนเครื่องปริ้นความร้อน)
+                // + ปรับ offset/contrast ตามที่เจ้าของร้านตั้งในหน้า "print adjust" (เฉพาะรูปปริ้น ไม่กระทบรูปสี)
+                if (grayscale) {
+                    const im = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const d = im.data;
+                    for (let p = 0; p < d.length; p += 4) {
+                        let g = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
+                        g = Math.round(bwAdjust(g, pa.photo.o, pa.photo.c));
+                        d[p] = d[p + 1] = d[p + 2] = g;
+                    }
+                    if (pa.photo.s) { const k = pa.photo.s / 50; sharpenGray(im, canvas.width, geom.totalH, () => k); }
+                    ctx.putImageData(im, 0, 0);
+                }
+            } else {
+                const W = geom.W, TH = geom.totalH;
+                const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = TH; return c; };
+                const cP = mk(), cF = mk(), cD = mk();
+                const xP = cP.getContext('2d'), xF = cF.getContext('2d'), xD = cD.getContext('2d');
+                try {
+                    drawPhotos(xP); drawFrame(xF); await drawDecor(xD);
+                    // แปลงแต่ละชั้นเป็นเทา + ปรับโทนตามส่วนของมัน — คงความโปร่งใสไว้ ซ้อนชั้นแล้วขอบเนียนเหมือนเดิม
+                    const grayLayer = (cx, set) => {
+                        const im = cx.getImageData(0, 0, W, TH), d = im.data;
+                        for (let p = 0; p < d.length; p += 4) {
+                            if (!d[p + 3]) continue;
+                            const g = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
+                            d[p] = d[p + 1] = d[p + 2] = Math.round(bwAdjust(g, set.o, set.c));
+                        }
+                        cx.putImageData(im, 0, 0);
+                        return im;
+                    };
+                    // ถือแค่ช่อง alpha (1 ไบต์/พิกเซล) ไว้คำนวณความคม ไม่ถือ ImageData ทั้งก้อน — ใบ 45 ซม. ก้อนละ ~8 MB
+                    const needSharp = !!(pa.photo.s || pa.frame.s);
+                    const alphaOf = (im) => { const a = new Uint8Array(W * TH); for (let i = 0, p = 3; i < a.length; i++, p += 4) a[i] = im.data[p]; return a; };
+                    const aP = needSharp ? alphaOf(grayLayer(xP, pa.photo)) : (grayLayer(xP, pa.photo), null);
+                    const imF = grayLayer(xF, pa.frame);
+                    const aF = (needSharp && frameOnTop) ? alphaOf(imF) : null;
+                    const aD = needSharp ? alphaOf(grayLayer(xD, pa.frame)) : (grayLayer(xD, pa.frame), null);
+                    // พื้นกระดาษนับเป็นส่วน "กรอบ" (ทางเดิมพื้นขาวก็โดนปรับโทนทั้งใบ) — ทาทั้งแผ่นรวมแถบ QR
+                    const paper = Math.round(bwAdjust(255, pa.frame.o, pa.frame.c));
+                    ctx.fillStyle = `rgb(${paper},${paper},${paper})`;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    if (frameOnTop) { ctx.drawImage(cP, 0, 0); ctx.drawImage(cF, 0, 0); }
+                    else { ctx.drawImage(cF, 0, 0); ctx.drawImage(cP, 0, 0); }
+                    ctx.drawImage(cD, 0, 0);
+                    cP.width = cP.height = 0; cF.width = cF.height = 0; cD.width = cD.height = 0;   // ซ้อนเสร็จ คืนแรมก่อนทำความคม
+                    // ความคมแยกส่วน: น้ำหนัก "รูป" ต่อพิกเซล = ความทึบของรูปที่มองเห็นจริง หลังซ้อนกรอบ (ถ้ากรอบทับบน)
+                    // และหลังของตกแต่งทับ — สติ๊กเกอร์/ลายเส้นใช้ค่าของ "กรอบ" ตามที่แผงบอกไว้ แม้วางทับบนรูป
+                    if (needSharp) {
+                        const kP = pa.photo.s / 50, kF = pa.frame.s / 50;
+                        const im = ctx.getImageData(0, 0, W, TH);
+                        sharpenGray(im, W, TH, (i) => {
+                            let m = aP[i] / 255;
+                            if (aF) m *= 1 - aF[i] / 255;
+                            m *= 1 - aD[i] / 255;
+                            return kP * m + kF * (1 - m);
+                        });
+                        ctx.putImageData(im, 0, 0);
+                    }
+                } finally {
+                    cP.width = cP.height = 0; cF.width = cF.height = 0; cD.width = cD.height = 0;   // คืนแรมทันที (ใบยาว 45 ซม. ชั้นละ ~8 MB)
+                }
             }
 
             // วาดแถบล่าง "หลัง" แปลงขาวดำ — QR คมชัด ไม่โดน offset/contrast กลืน (ไม่มี label "Scan here" แล้ว)
@@ -4842,6 +6285,13 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             const finalImg = document.getElementById('final-preview');
             finalImg.classList.remove('printed');
             finalImg.src = "";
+            // ใบ custom: ใส่ขอบจาง (พื้นขาวล้วนกลืนพื้นหลัง) / ใบยาวเกิน ~17.5ซม.: ย่อให้เห็นทั้งใบ
+            // toggle ทุกรอบ — รอบถัดไปเป็นเลย์เอาต์เดิมคลาสจะถูกถอดเอง หน้าตาเดิมเป๊ะ
+            try {
+                const geomR = getLayoutGeom(currentLayout);
+                finalImg.classList.toggle('custom-paper', !!geomR.custom);
+                finalImg.parentElement.classList.toggle('tall-paper', geomR.totalH > 1400);
+            } catch (e) {}
             try {
                 // โชว์บนจอ = กรอบสี (ดิจิทัล) ของกลุ่มปัจจุบัน และเก็บไว้ใช้อัป Drive ทำ QR
                 const colorFrame = frameFull(currentCategory(), selectedFrameIdx, 'full');   // หยิบไฟล์เต็มตอนใช้จริงเท่านั้น
