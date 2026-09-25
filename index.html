@@ -106,15 +106,22 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         .btn-cancel-new:active { transform: scale(0.95); background: #222; }
 
         /* --- Grid System --- */
-        .layout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 90%; max-width: 650px; }
+        /* การ์ดต้องอยู่กึ่งกลางเสมอ แม้แถวสุดท้ายไม่เต็ม (ร้านเปิดใบเดียว/3 ใบ = เดิมชิดซ้าย — ก๊องสั่ง 24 ก.ย. 2569)
+           ใช้ flex-wrap + จัดกลาง แทนตารางคอลัมน์ตายตัว · ความกว้างการ์ด = เท่าคอลัมน์เดิมเป๊ะ
+           → ร้านที่มีครบ 2/4 ใบ (fleet ทั้งหมด) หน้าตาเหมือนเดิมทุกพิกเซล */
+        .layout-grid { display: flex; flex-wrap: wrap; justify-content: center; align-content: flex-start; gap: 20px; width: 90%; max-width: 650px; }
+        /* min-width:0 + ตัดคำได้ = การ์ดห้ามกว้างเกินช่องของตัวเอง — ชื่อใบสั่งทำยาวๆ ที่ไม่มีเว้นวรรค
+           (เช่น Birthday_Special_2026 พิมพ์ได้ถึง 30 ตัว) จะดันการ์ดใบถัดไปตกแถว/ล้นจอ ถ้าไม่ใส่ 2 อันนี้ */
+        .layout-grid > .layout-opt { box-sizing: border-box; min-width: 0; flex: 0 0 calc((100% - 20px) / 2); }
         .layout-opt { border: 3px solid #eee; border-radius: 16px; padding: 20px 15px; text-align: center; cursor: pointer; transition: all 0.2s; background: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
         .layout-opt:active { transform: scale(0.95); border-color: #333; }
-        .layout-opt h3 { margin: 15px 0 0; font-size: 20px; font-weight: bold; color: #444; }
+        .layout-opt h3 { margin: 15px 0 0; font-size: 20px; font-weight: bold; color: #444; overflow-wrap: anywhere; }
         .layout-icon { background: #f0f0f0; margin: 0 auto; border: 2px solid #ddd; border-radius: 4px; }
         /* รูปคนตัวอย่างของแต่ละเลย์เอาต์ (ใส่ไฟล์ static/layout_*.png ก็จะโชว์แทนกล่องเทา) */
         .layout-photo { display:block; margin:0 auto; width:auto; max-width:100%; max-height:28vh; height:auto; border-radius:10px; }
         /* การ์ดเกิน 4 ใบ (ระบบ layout edit): 3 ต่อแถว เลื่อนแนวตั้งได้ — เนื้อหายังกึ่งกลางหน้าตามเดิม */
-        .layout-grid.grid-wrap3 { grid-template-columns: 1fr 1fr 1fr; max-height: 52vh; overflow-y: auto; padding: 4px; }
+        .layout-grid.grid-wrap3 { max-height: 52vh; overflow-y: auto; padding: 4px; }
+        .layout-grid.grid-wrap3 > .layout-opt { flex-basis: calc((100% - 40px) / 3); }
         .layout-grid.grid-wrap3 .layout-photo { max-height: 15vh; }
         .layout-grid.grid-wrap3 .layout-opt h3 { font-size: 16px; }
 
@@ -344,6 +351,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         /* แถบเครื่องมือหน้าตกแต่ง: ปุ่ม Draw ซ้ายมือ + ถาดสติ๊กเกอร์ (สลับเป็นจานสีตอนเปิดโหมดวาด) */
         .deco-tools { display:flex; align-items:center; gap:10px; width:90%; max-width:480px; margin:16px auto 0; }
         .deco-tools .sticker-tray { margin:0; flex:1 1 auto; width:auto; max-width:none; }
+        /* ถาดสติ๊กเกอร์น้อยอัน (ร้านซ่อนชุดพื้นฐานแล้วใส่ของตัวเอง 2-3 อัน) เดิมชิดซ้ายติดปุ่ม Draw เหลือที่ว่างข้างขวา
+           ใช้ margin auto ที่อันแรก/อันสุดท้าย (แบบเดียวกับแถวเลือกกรอบ) — ห้ามใช้ justify-content เพราะถาดเลื่อนได้
+           ถ้าอันเยอะจนล้น หัวแถวจะโดนดันออกนอกถาดจนเลื่อนไปไม่ถึง */
+        .deco-tools .sticker-tray > :first-child { margin-left:auto; }
+        .deco-tools .sticker-tray > :last-child { margin-right:auto; }
         .deco-draw-btn { flex:0 0 auto; width:68px; height:68px; border-radius:14px; border:none; background:transparent; padding:0; cursor:pointer; }
         .deco-draw-btn img { width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; }
         .deco-draw-btn.active { box-shadow:0 0 0 3px #111; border-radius:12px; }
