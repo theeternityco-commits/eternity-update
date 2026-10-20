@@ -1479,7 +1479,27 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             try { customLayouts.forEach(L => ensureFrameCat(L.id)); } catch (e) {}   // เตรียมหมวดกรอบของแต่ละใบ
         }
         function saveCustomLayouts() {
-            try { localStorage.setItem('customLayouts', JSON.stringify(customLayouts)); } catch (e) {}
+            const json = JSON.stringify(customLayouts);
+            try { localStorage.setItem('customLayouts', json); return true; } catch (e) {}
+            // ที่เก็บเต็ม (กองตรวจ 20 ต.ค. 2569): เดิมเงียบ → ใบที่เพิ่งอนุมัติ/สร้างหายตอนเปิดแอปใหม่ ทั้งที่จอขึ้นว่าสำเร็จ
+            // ปกเป็นของสร้างใหม่ได้ (ปกผังวาดเองได้ตลอด · ปกที่ร้านอัปยังอยู่ใน RAM รอบนี้) → ทิ้งปกทั้งหมดก่อน ให้ข้อมูลใบชนะเสมอ
+            try {
+                const ks = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    if (k && (k.indexOf('layoutCover_') === 0 || k.indexOf('coverSrc_') === 0)) ks.push(k);
+                }
+                ks.forEach(k => localStorage.removeItem(k));
+                _coverStored = 0;
+                localStorage.setItem('customLayouts', json);
+                return true;
+            } catch (e) {}
+            // บอกเฉพาะตอนเจ้าของร้านอยู่ในหน้า layout edit — ทางเช็คเงียบตอนบูตห้ามเด้งกล่องทับหน้าลูกค้า
+            try {
+                const open = ['overlay-layout-edit', 'overlay-layout-editor'].some(id => { const el = document.getElementById(id); return el && el.style.display && el.style.display !== 'none'; });
+                if (open) alert('บันทึกเลย์เอาต์ไม่สำเร็จ — ที่เก็บตั้งค่าในเครื่องเต็ม ลองลบสติ๊กเกอร์/กรอบที่ไม่ใช้ แล้วทำรายการนี้ใหม่อีกครั้งนะคะ');
+            } catch (e) {}
+            return false;
         }
         function isCustomLayout(layout) { return typeof layout === 'string' && layout.indexOf('cl_') === 0; }
         function getCustomLayout(id) { return customLayouts.find(L => L.id === id) || null; }
@@ -3926,9 +3946,12 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         function deleteCustomLayout(id) {
             const L = getCustomLayout(id);
             if (!L) return;
+            // ใบ "รอตรวจ" อาจจ่ายเงินไปแล้ว — เตือนให้ชัดเท่าใบที่อนุมัติแล้ว (กองตรวจ 20 ต.ค. 2569)
             const warn = (L.status === 'approved')
                 ? 'ลบเลย์เอาต์ "' + L.name + '" ? สิทธิ์ที่อนุมัติแล้วของใบนี้จะหายไปด้วย (สร้างใหม่ต้องขออนุมัติใหม่)'
-                : 'ลบเลย์เอาต์ "' + L.name + '" ?';
+                : (L.status === 'pending')
+                    ? 'ใบ "' + L.name + '" ส่งขออนุมัติไปแล้ว — ถ้าชำระเงินไปแล้ว ลบแล้วสิทธิ์นั้นจะใช้ไม่ได้ (ต้องให้แอดมินส่งรหัสเลย์เอาต์กลับมาใส่ใหม่)\nลบจริงไหมคะ?'
+                    : 'ลบเลย์เอาต์ "' + L.name + '" ?';
             if (!confirm(warn)) return;
             // เก็บกวาดกรอบของใบนี้ให้หมด (ไฟล์ในเครื่อง + รูปย่อ + ตัวนับ) — ไม่ให้เป็นขยะค้าง
             try {
@@ -4035,7 +4058,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                         : 'แก้ได้เฉพาะฉบับร่างค่ะ — ใบที่ส่งขอ/อนุมัติแล้ว ใช้ "ก๊อปเป็นร่าง" แทน');
                     return;
                 }
-                if (isRevision && !confirm('ใบที่ซื้อแล้วแก้ไขได้ 1 ครั้งเท่านั้นนะคะ\nสิทธิ์จะถูกใช้เมื่อกด done — จะแก้ตอนนี้ไหมคะ?')) return;
+                // กรอบที่อัปไว้ผูกกับผังเดิม — แก้ความยาว/ช่องแล้วกรอบเก่าจะถูกยืดจนรูไม่ตรงช่อง ต้องบอกก่อน (กองตรวจ 20 ต.ค. 2569)
+                if (isRevision && !confirm('ใบที่ซื้อแล้วแก้ไขได้ 1 ครั้งเท่านั้นนะคะ\nสิทธิ์จะถูกใช้เมื่อกด done — จะแก้ตอนนี้ไหมคะ?\n\n⚠ ถ้าเปลี่ยนความยาวหรือตำแหน่งช่องรูป ต้องอัปไฟล์กรอบของใบนี้ใหม่ให้ตรงผังด้วย (frame edit → ใบนี้)')) return;
                 leWork = { name: L.name, totalH: L.totalH, boxes: L.boxes.map(boxCopy) };
                 leEditingId = id;
             } else {
@@ -4425,7 +4449,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             const L = getCustomLayout(id);
             if (!L || L.status !== 'draft') return;
             if (!layoutBridgeReady()) { alert('ต้องอัปเดตแอปก่อนถึงส่งขออนุมัติได้ค่ะ — เมนู option → app update'); return; }
-            if (!confirm('ส่งขออนุมัติ "' + L.name + '" ?\n\n· ส่งแล้วแก้ไขใบนี้ไม่ได้อีก (แก้ = สร้างใหม่ + ขอใหม่)\n· ติดต่อแอดมินเพื่อชำระค่าบริการ แล้วแอดมินจะกดอนุมัติให้ค่ะ')) return;
+            if (!confirm('ส่งขออนุมัติ "' + L.name + '" ?\n\n· ส่งแล้วแก้ไขไม่ได้จนกว่าจะอนุมัติ — อนุมัติแล้วแก้ได้อีก 1 ครั้ง (มากกว่านั้น = ก๊อปเป็นร่าง + ขอใหม่)\n· ติดต่อแอดมินเพื่อชำระค่าบริการ แล้วแอดมินจะกดอนุมัติให้ค่ะ')) return;
             const dev = kioskDeviceId();
             if (!dev) { alert('อ่านรหัสเครื่องไม่ได้ ลองใหม่อีกครั้งนะคะ'); return; }
             const hash = layoutHash(L);
@@ -4514,10 +4538,18 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             try {
                 r = await fsLayoutHttp('GET', LAYOUT_FS_BASE + '/layout_requests/' + encodeURIComponent(L.reqId) + '?key=' + LAYOUT_FS_KEY, null);
             } catch (e) { if (!silent) alert('เช็คไม่สำเร็จ — เช็คอินเทอร์เน็ตแล้วลองใหม่นะคะ'); return; }
-            if (r.status === 404) { if (!silent) alert('ไม่พบคำขอบนเซิร์ฟเวอร์ — ลองส่งใหม่ หรือติดต่อแอดมินค่ะ'); return; }
+            if (r.status === 404) {
+                // คำขอหายจากเซิร์ฟเวอร์ (แอดมินลบทิ้งใน console) — เดิมใบค้าง "รอตรวจ" ตลอดกาล: ส่งใหม่ก็ไม่ได้ แก้ก็ไม่ได้
+                // (กองตรวจ 20 ต.ค. 2569) → คืนเป็นร่าง ส่งขอใหม่ได้ด้วย id เดิม (doc หายแล้ว POST ซ้ำผ่าน) · ผัง/กรอบ/ปกไม่แตะ
+                L.status = 'draft'; L.reqId = ''; delete L.note;
+                saveCustomLayouts(); renderLayoutEditUI();
+                if (!silent) alert('คำขอของใบนี้ไม่อยู่บนเซิร์ฟเวอร์แล้ว — คืนเป็นฉบับร่างให้แล้ว กด "ส่งขออนุมัติ" ใหม่ได้เลยค่ะ');
+                return;
+            }
             if (r.status !== 200) { if (!silent) alert('เช็คไม่สำเร็จ (' + r.status + ') ลองใหม่อีกครั้งนะคะ'); return; }
             let f = null;
-            try { f = (JSON.parse(r.body) || {}).fields || {}; } catch (e) { return; }
+            // เน็ตหลุดกลางคำตอบ = ได้ 200 แต่ body ว่าง → เดิมเงียบ กดแล้วไม่มีอะไรเกิดขึ้น (กองตรวจ 20 ต.ค. 2569)
+            try { f = (JSON.parse(r.body) || {}).fields || {}; } catch (e) { if (!silent) alert('เช็คไม่สำเร็จ — คำตอบจากเซิร์ฟเวอร์ผิดรูปแบบ ลองใหม่อีกครั้งนะคะ'); return; }
             const st = (f.status && f.status.stringValue) || 'pending';
             if (st === 'approved') {
                 // การอนุมัติผูกกับเครื่องนี้ + งานออกแบบหน้าตานี้เท่านั้น
