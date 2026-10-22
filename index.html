@@ -761,7 +761,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     <!-- ด่านบังคับเชื่อม Google Drive ก่อนเข้าโหมด (ก๊องสั่ง 22 ต.ค. 2569) — ปิดได้ที่ qrcode edit → "บังคับเชื่อม Google Drive" -->
     <div id="overlay-drive-gate" class="overlay" style="z-index:130;">
         <div class="boot-logo-text">receipt<span>photobooth</span></div>
-        <div style="font-size:26px; font-weight:800; color:#fff; text-align:center; margin:6px 24px 12px; line-height:1.35;">ยังไม่พบการเชื่อมต่อของ Google drive!</div>
+        <div id="drive-gate-title" style="font-size:26px; font-weight:800; color:#fff; text-align:center; margin:6px 24px 12px; line-height:1.35;">ยังไม่พบการเชื่อมต่อของ Google drive!</div>
         <div id="drive-gate-reason" style="color:#bbb; font-size:16px; text-align:center; max-width:480px; line-height:1.6; margin:0 24px 6px;"></div>
         <div id="drive-gate-account" style="color:#777; font-size:13px; text-align:center; margin:0 24px 20px; word-break:break-all;"></div>
         <div class="overlay-menu">
@@ -2745,24 +2745,29 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             return { state: 'on', reason: '', email, v130 };
         }
         function driveState() { return driveInfo().state; }
-        function driveReasonText(r) {
-            if (r === 'not_linked') return 'ตู้นี้ยังไม่ได้เชื่อม Google Drive — กด "เชื่อม google drive" แล้วเลือกบัญชีของร้าน';
-            if (r === 'no_permission') return 'ตอนล็อกอินยังไม่ได้ติ๊กอนุญาต Google Drive — กด "เชื่อม google drive" ใหม่ แล้วติ๊กช่อง Drive ด้วย';
-            if (r === 'auth') return 'บัญชี Google ต้องยืนยันใหม่ — กด "เชื่อม google drive" แล้วเลือกบัญชีเดิม';
-            if (r === 'network') return 'ตู้ยังต่อเน็ตไม่ได้ — เช็ค WiFi ของตู้ (พอเน็ตมา ตู้จะเชื่อมไดรฟ์เองแล้วพาเข้าโหมดให้อัตโนมัติ)';
-            if (r === 'checking') return 'กำลังเชื่อมต่อ Google Drive… รอสักครู่ ตู้จะพาเข้าโหมดให้เองเมื่อพร้อม';
-            if (r === 'failing_old') return 'รูปล่าสุดไม่ได้ขึ้นไดรฟ์ — เช็คว่าตู้ต่อเน็ตแล้ว แล้วกด "เชื่อม google drive" เลือกบัญชีเดิม';
-            if (r === 'pending') return 'ยังเลือกบัญชีไดรฟ์ไม่เสร็จ — กด "เชื่อม google drive" แล้วเลือกบัญชีให้เสร็จ';
-            if (r === 'unknown') return 'อ่านสถานะไดรฟ์ไม่ได้ — กด "ลองใหม่"';
-            if (r === 'boot_offline') return 'ตู้เปิดแอปตอนยังไม่มีเน็ต — ต่อ WiFi ให้ติด แล้วกด "เชื่อม google drive" เลือกบัญชีเดิม (พร้อมทันที)';
-            if (r === 'restart_needed') return 'เพิ่งเปลี่ยนบัญชีไดรฟ์ — ต้องปิดแอปแล้วเปิดใหม่ 1 ครั้ง (ปัดปิดแอป หรือรีสตาร์ทแท็บเล็ต แล้วกด "เชื่อม google drive" เลือกบัญชีใหม่อีกครั้ง)';
-            if (r === 'quota') return 'พื้นที่ Google Drive ของร้านเต็ม — ลบไฟล์เก่า แล้วล้างถังขยะในไดรฟ์ด้วย (ไฟล์ในถังยังกินพื้นที่) หรือซื้อพื้นที่เพิ่ม แล้วกด "ลองใหม่"';
+        // where: 'gate' = หน้าด่าน (มีปุ่ม "เชื่อม google drive" + "ลองใหม่") · 'menu' = กล่องจากปุ่มไดรฟ์ (มีแค่ OK/Cancel) · 'check' = หน้า system check
+        function driveReasonText(r, where) {
+            where = where || 'gate';
+            const LINK = where === 'menu' ? 'กด OK' : (where === 'check' ? 'ไปเมนู option → กดปุ่ม google drive' : 'กด "เชื่อม google drive"');
+            const RETRY = where === 'menu' ? 'แล้วกดเข้าโหมดใหม่อีกครั้ง' : (where === 'check' ? 'แล้วกด "เช็คอีกครั้ง"' : 'แล้วกด "ลองใหม่"');
+            if (r === 'not_linked') return 'ตู้นี้ยังไม่ได้เชื่อม Google Drive — ' + LINK + ' แล้วเลือกบัญชีของร้าน';
+            if (r === 'no_permission') return 'ตอนล็อกอินยังไม่ได้ติ๊กอนุญาต Google Drive — ' + LINK + ' แล้วติ๊กช่อง Drive ด้วย';
+            if (r === 'auth') return 'บัญชี Google ต้องยืนยันใหม่ — ' + LINK + ' แล้วเลือกบัญชีเดิม';
+            if (r === 'network') return 'ตู้ยังต่อเน็ตไม่ได้ — เช็ค WiFi ของตู้ (เน็ตมาเมื่อไหร่ ' + (where === 'gate' ? 'ตู้พาเข้าโหมดให้เอง)' : 'ตู้เชื่อมไดรฟ์ให้เอง)');
+            if (r === 'checking') return where === 'gate' ? 'รอสักครู่ — พร้อมแล้วตู้จะพาเข้าโหมดให้เอง' : 'กำลังเชื่อมต่อ Google Drive… รอสักครู่';
+            if (r === 'failing_old') return 'รูปล่าสุดไม่ได้ขึ้นไดรฟ์ — เช็คว่าตู้ต่อเน็ตแล้ว แล้ว' + LINK + ' เลือกบัญชีเดิม';
+            if (r === 'pending') return 'ยังเลือกบัญชีไดรฟ์ไม่เสร็จ — ' + LINK + ' แล้วเลือกบัญชีให้เสร็จ';
+            if (r === 'unknown') return 'อ่านสถานะไดรฟ์ไม่ได้ — ' + RETRY.replace(/^แล้ว/, '');
+            if (r === 'boot_offline') return 'ตู้เปิดแอปตอนยังไม่มีเน็ต — ต่อ WiFi ให้ติด แล้ว' + LINK + ' เลือกบัญชีเดิม (พร้อมทันที)';
+            if (r === 'restart_needed') return 'เพิ่งเปลี่ยนบัญชีไดรฟ์ — ปัดปิดแอปแล้วเปิดใหม่ 1 ครั้ง (ต่อเน็ตให้ติดก่อน) แล้วใช้ได้เลย';
+            // อย่าให้ร้านลบตัวโฟลเดอร์ใหญ่ (ลบแล้วรูปหลังจากนั้นไม่ขึ้นไดรฟ์จนกว่าตู้จะหาโฟลเดอร์ใหม่)
+            if (r === 'quota') return 'พื้นที่ Google Drive ของร้านเต็ม — ลบโฟลเดอร์วันเก่าๆ ที่อยู่ในโฟลเดอร์ TheEternityPhotobooth (อย่าลบตัวโฟลเดอร์ใหญ่) แล้วล้างถังขยะในไดรฟ์ด้วย หรือซื้อพื้นที่เพิ่ม ' + RETRY;
             if (r === 'linking') return 'กำลังรอเลือกบัญชี Google… เลือกให้เสร็จ แล้วตู้จะพาเข้าโหมดให้เอง';
-            if (r === 'share_blocked') return 'บัญชีนี้ (องค์กร) ไม่อนุญาตแชร์ลิงก์ให้ลูกค้า — ใช้บัญชี Gmail ส่วนตัวแทน (กด "เชื่อม google drive")';
-            if (r === 'play_services') return 'Google Play services ในแท็บเล็ตต้องอัปเดต — เปิด Play Store อัปเดต Google Play services แล้วกด "ลองใหม่"';
-            if (r === 'account_missing') return 'บัญชี Google นี้ไม่อยู่ในแท็บเล็ตแล้ว — กด "เชื่อม google drive" แล้วเลือกบัญชีของร้าน';
-            if (/^http_/.test(r)) return 'Google Drive ตอบกลับผิดพลาด (' + r.slice(5) + ') — กด "ลองใหม่" หรือเชื่อมบัญชีใหม่';
-            return 'เชื่อม Google Drive ไม่สำเร็จ (' + r + ') — กด "ลองใหม่" หรือเชื่อมบัญชีใหม่';
+            if (r === 'share_blocked') return 'บัญชีนี้ (องค์กร) ไม่อนุญาตแชร์ลิงก์ให้ลูกค้า — ' + LINK + ' แล้วเลือกบัญชี Gmail ส่วนตัวแทน';
+            if (r === 'play_services') return 'Google Play services ในแท็บเล็ตต้องอัปเดต — เปิด Play Store อัปเดต Google Play services ' + RETRY;
+            if (r === 'account_missing') return 'บัญชี Google นี้ไม่อยู่ในแท็บเล็ตแล้ว — ' + LINK + ' แล้วเลือกบัญชีของร้าน';
+            if (/^http_/.test(r)) return 'Google Drive ตอบกลับผิดพลาด (รหัส ' + r.slice(5) + ') — ' + RETRY.replace(/^แล้ว/, '') + ' หรือเชื่อมบัญชีใหม่';
+            return 'เชื่อม Google Drive ไม่สำเร็จ — ' + RETRY.replace(/^แล้ว/, '') + ' หรือเชื่อมบัญชีใหม่';
         }
         function syncGoogleBtn() {
             const btn = document.getElementById('btn-google-auth');
@@ -2779,7 +2784,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 btn.innerHTML = 'drive<span>ไม่ทำงาน</span>' + sub('กดดูวิธีแก้');
                 btn.style.borderColor = '#ff6b6b';
             } else if (d.state === 'pending') {
-                btn.innerHTML = 'drive<span>ยังเชื่อมไม่เสร็จ</span>' + sub('กดเพื่อเลือกบัญชีให้เสร็จ ไม่งั้นเปิดแอปรอบหน้าจะหลุด');
+                btn.innerHTML = 'drive<span>ยังเชื่อมไม่เสร็จ</span>' + sub('กดเพื่อเลือกบัญชีให้เสร็จ');
                 btn.style.borderColor = '#ffd166';
             } else {
                 btn.innerHTML = 'link<span>google drive</span>';
@@ -2800,31 +2805,30 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         function onGoogleBtn() {
             if (!window.Android || !window.Android.signInGoogle) return;
             const d = driveInfo(), em = d.email;
-            if (d.state === 'on' && !confirm('ไดรฟ์เชื่อมอยู่แล้วค่ะ' + (em ? '\n' + em : '') +
-                    '\nปิด/เปิดแอปก็ยังเชื่อมอยู่ ไม่ต้องกดใหม่\n\n' +
-                    'กด OK = เปลี่ยนเป็นบัญชีอื่น (ต้องเลือกบัญชีให้เสร็จ' + (d.v130 ? ')' : ' — ถ้ากดยกเลิกกลางทาง ไดรฟ์จะหลุดตอนเปิดแอปรอบหน้า)') + '\n' +
+            if (d.state === 'on' && !confirm('ไดรฟ์เชื่อมอยู่แล้วค่ะ' + (em ? '\n' + em : '') + '\n\n' +
+                    'กด OK = เปลี่ยนเป็นบัญชีอื่น\n' +
                     'กด Cancel = ใช้บัญชีเดิมต่อ')) return;
             if (d.state === 'checking' && !confirm('กำลังเชื่อมต่อ Google Drive อยู่ค่ะ' + (em ? ' (' + em + ')' : '') + ' — รอสักครู่\n\nกด OK = เลือกบัญชีใหม่แทน\nกด Cancel = รอต่อ')) return;
-            if (d.state === 'failing' && !confirm('ไดรฟ์ไม่ทำงานค่ะ' + (em ? ' (' + em + ')' : '') + '\n' + driveReasonText(d.reason) +
-                    '\n\nกด OK = เชื่อมบัญชีใหม่ตอนนี้ (ต้องเลือกบัญชีให้เสร็จ)\nกด Cancel = ปิด')) return;
+            if (d.state === 'failing' && !confirm('ไดรฟ์ไม่ทำงานค่ะ' + (em ? ' (' + em + ')' : '') + '\n' + driveReasonText(d.reason, 'menu') +
+                    '\n\nกด OK = เชื่อม google drive ตอนนี้ (ต้องเลือกบัญชีให้เสร็จ)\nกด Cancel = ปิด')) return;
             driveRelink();
         }
         function window_onGoogleConnected(email) {
             const from = driveSess('driveRelinkFrom');
+            const wasBootOffline = driveSess('driveBootOffline') !== null;   // แอปเก่าบูตก่อนเน็ต = ยังไม่มีโฟลเดอร์วันของบัญชีไหน → ไม่ต้องปิดเปิดแอป
             email = String(email || '');
             try { if (email) localStorage.setItem('driveEmail', email); } catch (e) {}
             driveSessSet('driveRelinkFrom', null);
             driveSessSet('driveLastUpload', null);   // ล็อกอินใหม่ = แอปหาโฟลเดอร์ใหม่ เริ่มนับใหม่
             syncGoogleBtn();
-            try { window.Android.showToast("Google Account Linked: " + email); } catch (e) {}
             // แอปเก่า: เปลี่ยนเป็น "บัญชีอื่น" กลางวัน แอปยังจำโฟลเดอร์วันนี้ของบัญชีเก่า → อัปไม่ผ่านจนกว่าจะเปิดแอปใหม่ (แอป 1.30 ล้างให้เองแล้ว)
             const d = driveInfo();
             if (!d.v130) {
                 driveSessSet('driveBootOffline', null);   // แอปเก่าหาโฟลเดอร์ใหม่ตอนล็อกอิน (ตอนนี้เน็ตมาแล้ว) = หายจากอาการบูตก่อนเน็ต
-                if (from !== null && from !== '?' && from.toLowerCase() !== email.toLowerCase()) {
+                if (!wasBootOffline && from !== null && from !== '?' && from.toLowerCase() !== email.toLowerCase()) {
                     driveSessSet('driveNeedsRestart', email);   // ตายพร้อมแอป = ปิดเปิดแอปแล้วหายเอง
                     setTimeout(() => alert('เปลี่ยนบัญชีไดรฟ์เป็น ' + email + ' แล้วค่ะ\n\nปัดปิดแอปแล้วเปิดใหม่ 1 ครั้งก่อนรับลูกค้านะคะ (ต่อเน็ตให้ติดก่อน)\nไม่งั้นรูปวันนี้จะยังไม่ขึ้นไดรฟ์บัญชีใหม่'), 300);
-                } else if (from === '?') {
+                } else if (!wasBootOffline && from === '?') {
                     setTimeout(() => alert('เชื่อมไดรฟ์ ' + email + ' แล้วค่ะ\n\nถ้าเลือกบัญชีเดิม ใช้ต่อได้เลย\nถ้าเปลี่ยนเป็นบัญชีใหม่ ต้องปัดปิดแอปแล้วเปิดใหม่ 1 ครั้งก่อนรับลูกค้า'), 300);
                 }
             }
@@ -2834,7 +2838,13 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         }
         window.onGoogleConnected = window_onGoogleConnected;
         // แอป 1.30 แจ้งทุกครั้งที่สถานะไดรฟ์เปลี่ยน (เชื่อมสำเร็จ / กำลังลอง / ล้มเหลว)
-        window.onDriveStatus = function () { try { syncGoogleBtn(); driveGateTick(); } catch (e) {} };
+        window.onDriveStatus = function () {
+            try {
+                syncGoogleBtn(); driveGateTick();
+                const d = driveInfo();
+                if (!driveGateIsOpen() && d.v130 && d.state === 'failing' && d.reason === 'http_404') driveNudge();
+            } catch (e) {}
+        };
         // กลับมาจากหน้าเลือกบัญชี/แอปอื่น → อัปเดตปุ่ม/ด่านทันที
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState !== 'visible') return;
@@ -2882,7 +2892,10 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         function renderDriveGate(d) {
             d = d || driveInfo();
             const r = document.getElementById('drive-gate-reason'), a = document.getElementById('drive-gate-account');
-            if (r) r.textContent = driveReasonText(d.reason || 'not_linked');
+            const t = document.getElementById('drive-gate-title');
+            if (t) t.textContent = (d.state === 'checking' || d.reason === 'checking' || d.reason === 'linking') ? 'กำลังเชื่อมต่อ Google Drive…' : 'ยังไม่พบการเชื่อมต่อของ Google drive!';
+            const offline = (d.reason === 'network' || d.reason === 'boot_offline') ? ' · งานที่ไม่มีเน็ตเลย: กด back → option → qrcode edit → ปิด "บังคับเชื่อม Google Drive"' : '';
+            if (r) r.textContent = driveReasonText(d.reason || 'not_linked', 'gate') + offline;
             if (a) a.textContent = d.email ? ('บัญชี: ' + d.email) : '';
             const rb = document.getElementById('drive-gate-retry');   // แอปเก่าไม่มีให้ลองซ้ำ (ยกเว้นอ่านสถานะไม่ได้)
             if (rb) rb.style.display = (d.v130 || d.reason === 'unknown') ? '' : 'none';
@@ -2952,9 +2965,13 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             return new Promise(resolve => {
                 const s = scGetSettings();
                 if (!s) { resolve({ ok: false, detail: 'เช็คได้เฉพาะบนตู้จริง' }); return; }
-                const d = driveInfo(), em = d.email;
-                if (d.state === 'on') resolve({ ok: true, detail: 'เชื่อมอยู่' + (em ? ' (' + em + ')' : '') + ' — รูปลูกค้าจะเซฟขึ้น Drive' });
-                else resolve({ ok: false, detail: driveReasonText(d.reason || 'not_linked') + (driveGateOn() ? ' · (ตอนนี้ตู้จะเข้าโหมดไม่ได้จนกว่าไดรฟ์พร้อม)' : '') });
+                let wait = 0;
+                try { if (typeof s.drive_ready === 'boolean' && s.google_signed_in && !(s.drive_ready && !s.drive_error) && window.Android.checkDriveNow) { window.Android.checkDriveNow(); wait = 3000; } } catch (e) {}
+                setTimeout(() => {
+                    const d = driveInfo(), em = d.email;
+                    if (d.state === 'on') resolve({ ok: true, detail: 'เชื่อมอยู่' + (em ? ' (' + em + ')' : '') + ' — รูปลูกค้าจะเซฟขึ้น Drive' });
+                    else resolve({ ok: false, detail: driveReasonText(d.reason || 'not_linked', 'check') + (driveGateOn() && d.state !== 'checking' ? ' · (ตอนนี้ตู้จะเข้าโหมดไม่ได้จนกว่าไดรฟ์พร้อม)' : '') });
+                }, wait);
             });
         }
         // ตั้งค่ารับเงินหรือยัง — กันเคส "ลืมตั้งตอนส่งเครื่อง" (v1.28 ไม่มีเบอร์ default แล้ว ลืม = รับเงินไม่ได้เลย)
