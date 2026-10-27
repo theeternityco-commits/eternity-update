@@ -2805,6 +2805,17 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         function onGoogleBtn() {
             if (!window.Android || !window.Android.signInGoogle) return;
             const d = driveInfo(), em = d.email;
+            // ล็อกอินอยู่ = ถามออกจากระบบ (ก๊อง 27 ต.ค. 2569 — ไว้ออกจากบัญชีทดสอบ) · ออกแล้วกดอีกที = เลือกบัญชีใหม่
+            // แอปที่ยังไม่มีปุ่มออกจากระบบ (1.28–1.30) = แบบเดิมข้างล่าง
+            if (d.state !== 'off' && window.Android.signOutGoogle) {
+                if (confirm('ต้องการออกจากระบบใช่หรือไม่?')) {
+                    try { localStorage.removeItem('driveEmail'); } catch (e) {}
+                    driveSessSet('driveLastUpload', null);
+                    try { window.Android.signOutGoogle(); } catch (e) {}
+                    setTimeout(() => { try { syncGoogleBtn(); } catch (e) {} }, 300);
+                }
+                return;
+            }
             if (d.state === 'on' && !confirm('ไดรฟ์เชื่อมอยู่แล้วค่ะ' + (em ? '\n' + em : '') + '\n\n' +
                     'กด OK = เปลี่ยนเป็นบัญชีอื่น\n' +
                     'กด Cancel = ใช้บัญชีเดิมต่อ')) return;
