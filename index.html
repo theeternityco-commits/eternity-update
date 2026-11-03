@@ -5291,19 +5291,32 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         let gifClips = [];          // gifClips[ช็อต] = [dataURL เฟรมเล็กๆ ...]
         let gifSampleTimer = null;
         const GIF_FPS = 4, GIF_MAX_FRAMES = 12;   // 4 เฟรม/วิ × 3 วิ (ก๊อง 15 สค: 5 วิยาวไป — สั้นลง ไฟล์เบาลง อัปไวขึ้นด้วย)
+        // ===== วิดีโอ 3 วิแทน GIF (ก๊อง 3 พ.ย. 2569: ลูกค้าเซฟ GIF แล้วไม่เข้าใจ / โพสต์ IG ไม่ได้) =====
+        // เฉพาะโหมดคลังกลาง + แอปที่มีตัวทำวิดีโอ (APK 1.32+) · แอปเก่า = GIF เหมือนเดิม
+        const MOTION_FPS = 8, MOTION_FRAMES = 24;
+        // เก็บภาพเท่าขนาดช่องจริงบนใบเสร็จ (ไม่ต้องขยายภาพเล็ก = ชัด) แต่ไม่เกิน 600 กันเครื่องอืด
+        function motionSampleW(idx) {
+            try { const b = getLayoutGeom(currentLayout).boxes[idx || 0]; return Math.max(240, Math.min(600, Math.round(b && b.w ? b.w : 480))); } catch (e) { return 480; }
+        }
+        const MOTION_TOKEN = 'motion-video';   // บอก sendDigitalUpload ว่าไฟล์วิดีโอรออยู่ในแอปแล้ว
+        function motionVideoOn() {
+            try { return hubActive() && !!(window.Android && window.Android.supportsMotionVideo && window.Android.supportsMotionVideo()); } catch (e) { return false; }
+        }
         function startGifSampling(idx) {
             stopGifSampling();
             if (!gifActive()) return;
             gifClips[idx] = [];
+            const video = motionVideoOn();
+            const fps = video ? MOTION_FPS : GIF_FPS, keep = video ? MOTION_FRAMES : GIF_MAX_FRAMES;
             gifSampleTimer = setInterval(() => {
                 try {
-                    const fr = sampleGifFrame(idx);
-                    if (fr) { const a = gifClips[idx]; a.push(fr); if (a.length > GIF_MAX_FRAMES) a.shift(); }  // เก็บเฉพาะ 3 วิสุดท้าย
+                    const fr = video ? sampleGifFrame(idx, motionSampleW(idx), 0.9) : sampleGifFrame(idx, 320);
+                    if (fr) { const a = gifClips[idx]; a.push(fr); if (a.length > keep) a.shift(); }  // เก็บเฉพาะ 3 วิสุดท้าย
                 } catch (e) {}
-            }, Math.round(1000 / GIF_FPS));
+            }, Math.round(1000 / fps));
         }
         function stopGifSampling() { if (gifSampleTimer) { clearInterval(gifSampleTimer); gifSampleTimer = null; } }
-        function sampleGifFrame(idx) {
+        function sampleGifFrame(idx, sampleW, quality) {
             // crop สัดส่วนเดียวกับ snap() เป๊ะ (ตามช่องของช็อตนี้) แต่ย่อเล็ก (กว้าง 320) ประหยัดแรม
             const geom = getLayoutGeom(currentLayout);
             const targetRatio = shotRatio(geom, idx || 0);
@@ -5320,11 +5333,12 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             if (vw / vh > targetRatio) { sh = vh; sw = vh * targetRatio; } else { sw = vw; sh = vw / targetRatio; }
             const sx = (vw - sw) / 2, sy = (vh - sh) / 2;
             const c = document.createElement('canvas');
-            c.width = 320; c.height = Math.max(1, Math.round(320 / targetRatio));
+            const W = sampleW || 320;
+            c.width = W; c.height = Math.max(1, Math.round(W / targetRatio));
             const ctx = c.getContext('2d');
             if (mirror) { ctx.translate(c.width, 0); ctx.scale(-1, 1); }
             ctx.drawImage(src, sx, sy, sw, sh, 0, 0, c.width, c.height);
-            return c.toDataURL('image/jpeg', 0.7);
+            return c.toDataURL('image/jpeg', quality || 0.7);
         }
 
         // --- ตัวเข้ารหัส GIF89a (เขียนเอง ฝังในไฟล์ — ไม่พึ่งเน็ต/ไฟล์อื่น จึงอัปออนไลน์ได้) ---
@@ -5425,6 +5439,36 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         }
 
         // --- ประกอบใบเสร็จแบบเคลื่อนไหวทั้งใบ แล้วเข้ารหัสเป็น GIF ---
+        // ประกอบใบเสร็จทีละเฟรม แล้วส่งให้แอปทำเป็น MP4 (ตัวแปลงของเครื่อง ใช้ได้ทุกตู้ Android 7+)
+        // ไฟล์อยู่ในแอป รอแนบไปกับรูปรอบนี้ · พลาดตรงไหน = ไม่มีไฟล์เคลื่อนไหว (รูปสี+ใบเสร็จยังได้ครบ)
+        async function buildMotionVideo(colorFrameSrc) {
+            try {
+                if (!photos.length) return '';
+                let maxLen = 0;
+                for (let i = 0; i < photos.length; i++) maxLen = Math.max(maxLen, (gifClips[i] || []).length);
+                if (maxLen < 2) return '';
+                const F = Math.min(maxLen, MOTION_FRAMES);
+                const st = document.getElementById('print-status');
+                window.Android.beginMotionVideo();
+                for (let f = 0; f < F; f++) {
+                    const ovr = [];
+                    for (let i = 0; i < photos.length; i++) {
+                        const clip = gifClips[i] || [];
+                        ovr.push(clip.length ? clip[f % clip.length] : photos[i]);
+                    }
+                    const cv = await composeReceipt(colorFrameSrc, false, null, { photoOverride: ovr, wantCanvas: true });
+                    if (!window.Android.addMotionFrame(cv.toDataURL('image/jpeg', 0.92))) return '';
+                    if (st && !(typeof awaitingThermal !== 'undefined' && awaitingThermal)) st.innerText = `กำลังสร้างวิดีโอ... (${f + 1}/${F})`;
+                    await new Promise(r => setTimeout(r, 0));
+                }
+                return await new Promise(resolve => {
+                    const timer = setTimeout(() => { window.onMotionVideoDone = null; resolve(''); }, 15000);
+                    window.onMotionVideoDone = (ok) => { clearTimeout(timer); window.onMotionVideoDone = null; resolve(ok ? MOTION_TOKEN : ''); };
+                    window.Android.finishMotionVideo(MOTION_FPS);
+                });
+            } catch (e) { console.error('motion video failed', e); return ''; }
+        }
+
         async function buildGifReceipt(colorFrameSrc) {
             try {
                 if (!gifActive() || !photos.length) return null;
@@ -6782,7 +6826,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
 
             // โหมด GIF: เริ่มสร้างไฟล์เคลื่อนไหว "คู่ขนาน" ไปกับการปริ้นกระดาษ — เสร็จแล้วใช้แทนภาพนิ่งตอนอัป Drive
             // (สร้างไม่สำเร็จ/เฟรมไม่พอ → ถอยไปใช้ภาพนิ่งเองอัตโนมัติ ไม่มีทางค้าง)
-            pendingGifPromise = gifActive() ? buildGifReceipt(stFull || '') : null;
+            pendingGifPromise = gifActive() ? (motionVideoOn() ? buildMotionVideo(stFull || '') : buildGifReceipt(stFull || '')) : null;
 
             // โหมด "พิมพ์ QR ลงสลิป": ต้องได้ URL ก่อนค่อยพิมพ์ → อัป Drive ก่อน (printPhoto)
             // เมื่อ onPrintComplete คืน URL มา ค่อย compose ใบเสร็จพร้อม QR แล้วสั่งพิมพ์ (handlePrintModeUploadDone)
@@ -6934,13 +6978,15 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                     // (ใส่เฉพาะไฟล์เว็บ — กระดาษที่พิมพ์จริงไม่แตะ)
                     if (bwData) bwData = await addFilmGrain(bwData, 30);
                 } catch (e) {}
-                try { window.Android.setHubExtras(bwData || '', gifData || ''); } catch (e) {}
+                // วิดีโอรออยู่ในแอปแล้ว (แอปแนบเอง) → ไม่ต้องส่ง GIF
+                try { window.Android.setHubExtras(bwData || '', gifData === MOTION_TOKEN ? '' : (gifData || '')); } catch (e) {}
                 uploadPending = uploadRound; uploadPendingAt = Date.now();
                 try { window.Android.printPhoto(pendingColorData, printQuantity); }
                 catch (e) { uploadPending = 0; console.error('printPhoto error', e); printRescue('bridge'); }
                 return;
             }
             uploadPending = uploadRound; uploadPendingAt = Date.now();
+            if (gifData === MOTION_TOKEN) gifData = '';   // วิดีโอใช้เฉพาะคลังกลาง
             try { window.Android.printPhoto(gifData || pendingColorData, printQuantity); }
             catch (e) { uploadPending = 0; console.error('printPhoto error', e); printRescue('bridge'); }
         }
