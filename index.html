@@ -2972,6 +2972,48 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 img.src = 'https://www.google.com/favicon.ico?_=' + Date.now();
             });
         }
+        // ===== ความเร็วเน็ต (ก๊อง 6 พ.ย. 2569: "จะได้รู้ว่าเน็ตเร็วพอไหม") =====
+        // วัดกับ speed.cloudflare.com ซึ่งเปิด CORS ให้ทุก origin (หน้าในแอปเป็น Origin null ก็ใช้ได้ — เช็คแล้วตาม R20)
+        // ระดับดูจาก "อัปโหลด" เพราะงานหนักของตู้คือส่งรูปลูกค้าขึ้น Drive (รูปสี + ใบเสร็จ + วิดีโอ ราว 2 MB ต่อคน)
+        // ใช้เน็ตราว 3 MB ต่อการกดเช็ค 1 ครั้ง
+        const NET_SPEED_URL = 'https://speed.cloudflare.com';
+        const NET_LEVELS = [
+            { min: 15, label: 'ดีมาก', note: 'ส่งรูปไวมาก' },
+            { min: 5, label: 'ดี', note: 'พอสำหรับตู้' },
+            { min: 1.5, label: 'กลาง', note: 'พอใช้ แต่ลูกค้าจะรอรับรูปนานขึ้น' },
+            { min: 0, label: 'แย่', note: 'ไม่พอ ลูกค้าอาจรับรูปไม่ได้' },
+        ];
+        function netXhr(method, url, body, timeoutMs) {
+            return new Promise(resolve => {
+                const t0 = performance.now();
+                try {
+                    const x = new XMLHttpRequest();
+                    x.open(method, url);
+                    x.timeout = timeoutMs;
+                    if (method === 'GET') x.responseType = 'arraybuffer';
+                    x.onload = () => resolve({ ok: x.status >= 200 && x.status < 300, ms: performance.now() - t0 });
+                    x.onerror = x.ontimeout = () => resolve({ ok: false, ms: performance.now() - t0 });
+                    x.send(body || null);   // ข้อความล้วน = ไม่ต้องขออนุญาตล่วงหน้า (preflight)
+                } catch (e) { resolve({ ok: false, ms: 0 }); }
+            });
+        }
+        async function checkInternetSpeed() {
+            const base = await checkInternet();
+            if (!base.ok) return base;
+            const nc = () => '_=' + Date.now();
+            await netXhr('GET', NET_SPEED_URL + '/__down?bytes=0&' + nc(), null, 5000);   // รอบแรกเสียเวลาเปิดสาย ไม่นับ
+            const ping = await netXhr('GET', NET_SPEED_URL + '/__down?bytes=0&' + nc(), null, 5000);
+            if (!ping.ok) return { ok: true, badge: '?', detail: 'ต่อเน็ตได้ แต่วัดความเร็วไม่ได้ตอนนี้ — กด re-check อีกครั้ง' };
+            const DOWN = 2000000, UP = 1000000;
+            const dn = await netXhr('GET', NET_SPEED_URL + '/__down?bytes=' + DOWN + '&' + nc(), null, 15000);
+            const up = await netXhr('POST', NET_SPEED_URL + '/__up?' + nc(), 'a'.repeat(UP), 15000);
+            const mbps = (bytes, r) => r.ok ? (bytes * 8 / 1e6) / Math.max(0.05, (r.ms - ping.ms) / 1000) : 0;
+            const upM = mbps(UP, up), dnM = mbps(DOWN, dn);
+            const lv = NET_LEVELS.find(l => upM >= l.min);
+            const f = (v) => v >= 10 ? String(Math.round(v)) : v.toFixed(1);
+            return { ok: lv.label !== 'แย่', badge: lv.label,
+                     detail: 'อัปโหลด ' + (up.ok ? f(upM) : '-') + ' · ดาวน์โหลด ' + (dn.ok ? f(dnM) : '-') + ' Mbps — ' + lv.note };
+        }
         function checkDrive() {
             return new Promise(resolve => {
                 const s = scGetSettings();
@@ -3073,7 +3115,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             });
         }
         const SYS_CHECKS = [
-            { id: 'net', label: 'อินเทอร์เน็ต', run: checkInternet },
+            { id: 'net', label: 'อินเทอร์เน็ต', run: checkInternetSpeed },
             { id: 'mem', label: 'หน่วยความจำ (แรม)', run: checkMemory },
             // 2 แถวนี้ต้องใช้บริดจ์ฝั่งแอป — ตู้ที่ยังไม่อัพ APK จะไม่เห็นเลย (ไม่ขึ้นข้อความชวนงง)
             { id: 'storage', label: 'พื้นที่เครื่อง', run: checkStorage,
@@ -3107,7 +3149,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                     const st = document.getElementById('sc-status-' + c.id);
                     const dt = document.getElementById('sc-detail-' + c.id);
                     const row = document.getElementById('sc-' + c.id);
-                    if (st) st.textContent = r.ok ? '✓' : '✗';
+                    if (st) st.textContent = r.badge || (r.ok ? '✓' : '✗');   // แถวเน็ตโชว์ระดับ (แย่/กลาง/ดี/ดีมาก) แทนเครื่องหมาย
                     if (dt) dt.textContent = r.detail;
                     if (row) row.classList.toggle('sc-fail', !r.ok);
                 });
@@ -6706,6 +6748,26 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             printRescue('manual');
         }
         // กู้หน้าปริ้น: ปริ้นกระดาษให้ก่อน (ถ้ายังไม่ได้ปริ้น) แล้วปิดงานอย่างสุภาพพร้อมปุ่ม done
+        // ===== เน็ตมีปัญหาในรอบนี้ = บอกตรงๆ ไม่โชว์ QR ที่สแกนไม่ได้ (ก๊อง 6 พ.ย. 2569) =====
+        // เคสจริง: อัป Drive ไม่สำเร็จ + ตู้ไม่ได้ต่อ WiFi → แอปคืนลิงก์ "http://null/..." ลูกค้าสแกนแล้ว Safari หาเซิร์ฟเวอร์ไม่พบ
+        const NET_FAIL_TEXT = 'อินเตอร์เน็ตมีปัญหา หรือไม่เสถียรในรอบนี้ กรุณาเช็คอินเตอร์เน็ต';
+        let rescueAwaitingQr = false;   // หน้าถูกกู้ไปแล้วแบบ "QR อาจตามมา" (อัปช้า) — ถ้าสุดท้ายอัปไม่สำเร็จต้องเปลี่ยนข้อความ
+        // ลิงก์ที่มือถือลูกค้าเปิดได้จริง = https (Drive / หน้าเว็บรับรูป)
+        // ลิงก์ในวง WiFi ตู้ (http://<ที่อยู่ตู้>) ใช้ได้แค่ร้านที่ปิด "บังคับเชื่อม Google Drive" ไว้ (งานไม่มีเน็ตจริงๆ)
+        function qrUrlUsable(url) {
+            const u = String(url || '');
+            if (/^https:\/\//i.test(u)) return true;
+            if (!/^http:\/\/\d{1,3}(\.\d{1,3}){3}(:\d+)?\//.test(u)) return false;   // ไม่มีที่อยู่ตู้ (null) = เปิดไม่ได้แน่นอน
+            return !driveGateOn();
+        }
+        // อัปไม่สำเร็จหลังหน้าถูกกู้ไปแล้ว (ตอนนั้นบอกว่า QR อาจตามมา) → เลิกให้รอ QR
+        function netFailLate() {
+            if (!rescueAwaitingQr) return;
+            rescueAwaitingQr = false;
+            const st = document.getElementById('print-status'); if (st) st.innerText = NET_FAIL_TEXT;
+            const note = document.getElementById('print-rescue-note');
+            if (note) { note.innerText = 'รูปกระดาษออกให้ครบแล้วนะคะ'; note.style.display = 'block'; }
+        }
         async function printRescue(reason) {
             if (printRescueDone) return;
             // เครื่องปริ้นไม่ตอบกลับเลย (ส่งงานไปแล้วแต่ไม่มีสัญญาณว่าพิมพ์เสร็จ) — ห้ามบอกลูกค้าว่าปริ้นให้แล้ว
@@ -6729,18 +6791,21 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 if (d) { paperSent = true; try { window.Android.printThermal(d, printQuantity); } catch (e) {} }
             }
             const loader = document.getElementById('print-loader'); if (loader) loader.style.display = 'none';
-            const st = document.getElementById('print-status');
-            if (st) st.innerText = printerSilent ? 'เครื่องปริ้นไม่ตอบสนอง' : (paperSent ? 'ปริ้นรูปให้แล้วค่ะ' : 'ระบบขัดข้องชั่วคราว');
             // โหมด QR บนจอ + อัปยังไม่ตอบ (ช้า/เน็ตอืด): ถ้าอัปเสร็จทีหลังขณะยังอยู่หน้านี้ QR จะขึ้นมาเอง (onPrintComplete) — บอกไว้ให้รอได้
             const stillMayCome = paperSent && printFlowMode !== 'print' && uploadPending === uploadRound && (reason === 'timeout' || reason === 'manual');
+            // อัปไม่สำเร็จ / อัปช้าจนต้องกู้หน้า = เน็ตมีปัญหา → ข้อความเดียวกันทุกทาง (ก๊อง 6 พ.ย. 2569)
+            const netIssue = !printerSilent && (reason === 'upload-failed' || stillMayCome);
+            rescueAwaitingQr = stillMayCome && !printerSilent;
+            const st = document.getElementById('print-status');
+            if (st) st.innerText = printerSilent ? 'เครื่องปริ้นไม่ตอบสนอง' : netIssue ? NET_FAIL_TEXT : (paperSent ? 'ปริ้นรูปให้แล้วค่ะ' : 'ระบบขัดข้องชั่วคราว');
             const note = document.getElementById('print-rescue-note');
             if (note) {
                 note.innerText = printerSilent
                     ? 'ถ้ากระดาษไม่ออก รบกวนแจ้งพนักงานร้านนะคะ (เครื่องปริ้นไม่ตอบสนอง) — รูปดิจิทัลยังรับได้ตามปกติค่ะ'
                     : stillMayCome
-                    ? 'ส่งรูปขึ้นคลังช้ากว่าปกติ (เน็ตอาจขัดข้อง) — รูปกระดาษออกให้ครบแล้วนะคะ ถ้า QR ขึ้นมาสแกนได้เลยค่ะ'
+                    ? 'รูปกระดาษออกให้ครบแล้วนะคะ ถ้า QR ขึ้นมาสแกนได้เลยค่ะ'
                     : paperSent
-                        ? 'ส่งรูปขึ้นคลังไม่สำเร็จ (เน็ตอาจขัดข้อง) จึงไม่มี QR รับไฟล์รอบนี้ — รูปกระดาษออกให้ครบแล้วนะคะ'
+                        ? (netIssue ? 'รูปกระดาษออกให้ครบแล้วนะคะ' : 'ส่งรูปขึ้นคลังไม่สำเร็จ (เน็ตอาจขัดข้อง) จึงไม่มี QR รับไฟล์รอบนี้ — รูปกระดาษออกให้ครบแล้วนะคะ')
                         : 'รอบนี้ทำรายการไม่สำเร็จ รบกวนแจ้งพนักงานร้านนะคะ';
                 note.style.display = 'block';
             }
@@ -7211,10 +7276,14 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             const forRound = uploadPending; uploadPending = 0;
             if (!forRound || forRound !== uploadRound || !printRoundActive) { console.warn('stale onPrintComplete ignored', forRound, uploadRound); return; }
             try { if (typeof data === 'string') data = JSON.parse(data); } catch (e) { data = null; }
-            if (!data || data.status !== "OK") {
+            // แอปตอบ OK แต่ลิงก์เปิดจากมือถือลูกค้าไม่ได้ (อัป Drive ไม่ขึ้น ได้ลิงก์ในวง WiFi / http://null) = อัปไม่สำเร็จ
+            const netBad = !!data && data.status === "OK" && !qrUrlUsable(data.url);
+            if (netBad) console.warn('unusable QR link, treated as upload failure:', data.url);
+            if (!data || data.status !== "OK" || netBad) {
                 // อัปพังขณะกระดาษยังพิมพ์อยู่ (อัปคู่ขนาน) → รอกระดาษเสร็จค่อยบอก ไม่ตัดหน้า "กำลังพิมพ์" กลางคัน
                 if (earlyUpload && awaitingThermal) { earlyUploadFailed = true; return; }
                 clearPrintRescue();
+                if (printRescueDone) { netFailLate(); return; }
                 printRescue('upload-failed'); return;   // เดิม: return เงียบ = ค้างตลอดกาล
             }
 
