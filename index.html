@@ -6773,6 +6773,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         // ===== เน็ตแย่รอบไหน ส่งแค่รูปปกติรอบนั้น (ก๊อง 6 พ.ย. 2569) =====
         // วัดระหว่างกระดาษกำลังพิมพ์ (ส่งข้อมูลราว 300 KB) ลูกค้าไม่ต้องรอเพิ่ม · เกณฑ์เดียวกับระดับ "แย่" ในหน้า system check
         // รอบเบา = ไม่ส่งใบเสร็จขาวดำ/วิดีโอ/GIF → ไฟล์เดียวเล็กๆ ขึ้นไว แล้วแจ้งลูกค้าว่าสแกนได้เฉพาะรูปปกติ
+        // ⚠ ปิดไว้ (7 พ.ย. 2569): ร้านที่เน็ตปกติโดนเตือนเน็ต + ได้แค่รูปปกติ เพราะวัดตอนตู้ทำงานหนัก (ประกอบเฟรมวิดีโอ/ภาพปริ้น)
+        //   ตัวเลขเลยต่ำกว่าจริง และโหมดพิมพ์ QR ลงสลิปมีเวลาวัดแค่ 2.5 วิ — เปิดคืนได้ก็ต่อเมื่อวัดตอนเครื่องว่าง + เทสบนแท็บเล็ตจริงแล้ว
+        const NET_PROBE_ENABLED = false;
         const NET_LIGHT_MBPS = 1.5;
         const NET_LIGHT_TEXT = NET_FAIL_TEXT + '\nรอบนี้สแกนได้เฉพาะรูปปกติ';
         let netProbe = null, lightRound = false, motionAbort = false;
@@ -6832,8 +6835,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             const loader = document.getElementById('print-loader'); if (loader) loader.style.display = 'none';
             // โหมด QR บนจอ + อัปยังไม่ตอบ (ช้า/เน็ตอืด): ถ้าอัปเสร็จทีหลังขณะยังอยู่หน้านี้ QR จะขึ้นมาเอง (onPrintComplete) — บอกไว้ให้รอได้
             const stillMayCome = paperSent && printFlowMode !== 'print' && uploadPending === uploadRound && (reason === 'timeout' || reason === 'manual');
-            // อัปไม่สำเร็จ / อัปช้าจนต้องกู้หน้า = เน็ตมีปัญหา → ข้อความเดียวกันทุกทาง (ก๊อง 6 พ.ย. 2569)
-            const netIssue = !printerSilent && (reason === 'upload-failed' || stillMayCome);
+            // เตือนเน็ตเฉพาะตอนอัป "ไม่สำเร็จจริง" (ก๊อง 7 พ.ย. 2569: ร้านที่ไม่มีปัญหาต้องไม่เจอข้อความนี้)
+            // แค่ช้าจนต้องกู้หน้า (45 วิ / ลูกค้ากดข้าม) ยังไม่เตือน — QR อาจตามมา ถ้าสุดท้ายพังจริง netFailLate ค่อยเปลี่ยนข้อความ
+            const netIssue = !printerSilent && reason === 'upload-failed';
             rescueAwaitingQr = stillMayCome && !printerSilent;
             const st = document.getElementById('print-status');
             if (st) st.innerText = printerSilent ? 'เครื่องปริ้นไม่ตอบสนอง' : netIssue ? NET_FAIL_TEXT : (paperSent ? 'ปริ้นรูปให้แล้วค่ะ' : 'ระบบขัดข้องชั่วคราว');
@@ -6932,7 +6936,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             // โหมด GIF: เริ่มสร้างไฟล์เคลื่อนไหว "คู่ขนาน" ไปกับการปริ้นกระดาษ — เสร็จแล้วใช้แทนภาพนิ่งตอนอัป Drive
             // (สร้างไม่สำเร็จ/เฟรมไม่พอ → ถอยไปใช้ภาพนิ่งเองอัตโนมัติ ไม่มีทางค้าง)
             pendingGifPromise = gifActive() ? (motionVideoOn() ? buildMotionVideo(stFull || '') : buildGifReceipt(stFull || '')) : null;
-            netProbe = (hubActive() || gifActive()) ? startNetProbe().catch(() => ({ slow: true })) : null;
+            netProbe = (NET_PROBE_ENABLED && (hubActive() || gifActive())) ? startNetProbe().catch(() => ({ slow: true })) : null;
 
             // โหมด "พิมพ์ QR ลงสลิป": ต้องได้ URL ก่อนค่อยพิมพ์ → อัป Drive ก่อน (printPhoto)
             // เมื่อ onPrintComplete คืน URL มา ค่อย compose ใบเสร็จพร้อม QR แล้วสั่งพิมพ์ (handlePrintModeUploadDone)
@@ -7053,6 +7057,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         // - คลังกลางเปิด: อัปรูปสีเป็นไฟล์หลัก + ฝากใบเสร็จขาวดำและ GIF ให้แอปอัปแถม → ลูกค้าเลือกเองบนเว็บ
         // - แบบเดิม: โหมด GIF ใช้ไฟล์เคลื่อนไหวแทนภาพนิ่ง (พังก็ถอยไปภาพนิ่ง)
         let pendingGifPromise = null;
+        // นาฬิกา 45 วิของช่วงอัป เริ่มนับใหม่ตอนเริ่มส่งไฟล์จริง — เวลาที่ตู้ใช้ทำวิดีโอ/ใบเสร็จขาวดำไม่นับเป็นความช้าของเน็ต
+        function rearmUploadClock() {
+            if (printRescueDone || (earlyUpload && awaitingThermal)) return;
+            armPrintRescue(PRINT_UPLOAD_SEC, printFlowMode === 'print' ? 'ปริ้นเลย (ข้ามการส่งรูปขึ้นคลัง)' : 'ข้ามไปหน้าถัดไป');
+        }
         async function sendDigitalUpload() {
             // อัปคู่ขนานกับการพิมพ์: หน้าจอยังบอก "กำลังพิมพ์" และนาฬิกาปลุกช่วงพิมพ์ยังเดินอยู่ — นาฬิกาช่วงอัปเริ่มตอนกระดาษเสร็จ (thermalPhaseOver)
             if (!(earlyUpload && awaitingThermal)) {
@@ -7095,11 +7104,13 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 // วิดีโอรออยู่ในแอปแล้ว (แอปแนบเอง) → ไม่ต้องส่ง GIF
                 if (gifData !== MOTION_TOKEN) dropMotionVideo();   // วิดีโอที่ไม่ได้ยืนยันว่าเป็นของรอบนี้ ห้ามติดไปกับรูป
                 try { window.Android.setHubExtras(bwData || '', gifData === MOTION_TOKEN ? '' : (gifData || '')); } catch (e) {}
+                rearmUploadClock();
                 uploadPending = uploadRound; uploadPendingAt = Date.now();
                 try { window.Android.printPhoto(pendingColorData, printQuantity); }
                 catch (e) { uploadPending = 0; console.error('printPhoto error', e); printRescue('bridge'); }
                 return;
             }
+            rearmUploadClock();
             uploadPending = uploadRound; uploadPendingAt = Date.now();
             if (gifData === MOTION_TOKEN) gifData = '';   // วิดีโอใช้เฉพาะคลังกลาง
             try { window.Android.printPhoto(gifData || pendingColorData, printQuantity); }
